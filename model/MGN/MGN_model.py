@@ -3,7 +3,7 @@ import auxiliary.ChamferDistancePytorch.chamfer3D.dist_chamfer_3D as dist_chamfe
 from auxiliary.ChamferDistancePytorch.fscore import fscore
 import torch
 import torch.nn as nn
-import model.MGN.resnet as resnet
+import model.utils.resnet as resnet
 
 
 class EncoderDecoder(nn.Module):
