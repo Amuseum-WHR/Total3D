@@ -14,3 +14,71 @@ Follow this [website](https://blog.csdn.net/weixin_46632183/article/details/1205
 
 ## dataset
 To be filled.
+
+
+
+
+
+# TODO
+
+- [ ] 接口实现 example 
+
+    ```python
+    from argparse import ArgumentParser
+    def get_args():
+    parser = ArgumentParser()
+    
+    parser.add_argument(
+        "--n_epochs", default=41, type=int, help="the number of epochs to run."
+    )
+    parser.add_argument(
+        "--lr", default = 0.0001, type = float, help="learning rate."
+    )
+    
+    return parser.parse_args()
+    
+    
+    self.__init__(self, opt)
+    ```
+
+- [ ] Pipeline
+
+    - [ ] 梯度回传路径？
+
+    - [ ] Loss 构成？
+
+    - [ ] How to Modify the Mesh's Output with the ODN outputs?
+
+    - [ ] 
+
+- [ ] *Layout Estimation Net* 
+
+    - [ ] 图形学相关知识？
+
+    - [ ] output features ?
+
+- [ ] 数据怎么处理！？
+
+    - [ ] ODE 需要将场景中的物体划分后，假设有$N$个物品，以$N\times 3 \times 256 \times 256$输入，同时需要得到Geometry features($N \times N \times 64$)
+
+        
+
+- [ ] 数据集处理、接口 dataset.load 适配后续feature extraction
+
+    - [ ] 弄明白 data label 比如说 data是image， label是空间坐标
+    - [ ] Pix 3D 在下载 
+    - [ ] SUN RGB-D ？ 
+
+- [ ] 
+
+- [ ] Object Detection Network  尽早实现一下
+
+    - [ ] Attention Sum 注意一下是怎么实现
+
+- [ ] 提出 IDAES
+
+- [ ] Mesh Generation Net 
+
+    - [ ] 除理大小不同的input image
+    - [ ] 不同dimension的图片 如何用一个网络做encoding
+    - [ ] AtlasNet 边缘检测 、 边缘强化 **实现** （用 某种 net 实现）？ 能否用传统CV实现？
