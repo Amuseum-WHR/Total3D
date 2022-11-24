@@ -1,6 +1,6 @@
 from model.MGN.atlasnet import Atlasnet
-import auxiliary.ChamferDistancePytorch.chamfer3D.dist_chamfer_3D as dist_chamfer_3D
-from auxiliary.ChamferDistancePytorch.fscore import fscore
+# import auxiliary.ChamferDistancePytorch.chamfer3D.dist_chamfer_3D as dist_chamfer_3D
+# from auxiliary.ChamferDistancePytorch.fscore import fscore
 import torch
 import torch.nn as nn
 import model.utils.resnet as resnet
@@ -20,14 +20,17 @@ class EncoderDecoder(nn.Module):
         self.to(opt.device)
         self.eval()
 
-    def forward(self, x, train=True):
-        return self.decoder(self.encoder(x), train=train)
-
-    def generate_mesh(self, x):
+    def forward(self, x, size_cls, train=True):
         latent = self.encoder(x)
+        latent = torch.cat([latent, size_cls], 1)
+        return self.decoder(latent, train=train)
+
+    def generate_mesh(self, x, size_cls):
+        latent = self.encoder(x)
+        latent = torch.cat([latent, size_cls], 1)
         return self.decoder.generate_mesh(latent)
     
-    def build_loss(self):
+    '''def build_loss(self):
         loss_model = self.chamfer_loss
         return loss_model
     
@@ -47,5 +50,5 @@ class EncoderDecoder(nn.Module):
             loss_fscore, _, _ = fscore(dist1, dist2)
             loss_fscore = loss_fscore.mean()
             return loss, loss_fscore
-        return loss
+        return loss'''
 

@@ -76,7 +76,7 @@ def generate_square(grain):
         return np.array(vertices), np.array(faces)
 
 def load_template(number):
-    file_name = './model/sphere%d.pkl' % (number)
+    file_name = './model/MGN/sphere%d.pkl' % (number)
 
     with open(file_name, 'rb') as file:
         sphere_obj = pickle.load(file)
@@ -105,11 +105,11 @@ class Atlasnet(nn.Module):
         # new try
 
         self.decoders = nn.ModuleList(
-            [PointGenCon(3 + self.opt.bottleneck_size) for i in range(0, self.subnetworks)])
+            [PointGenCon(3 + self.opt.bottleneck_size + self.opt.num_classes) for i in range(0, self.subnetworks)])
         # for i in range(0, self.subnetworks):
         #     self.decoders[i] = self.decoders[i].to(self.device)
         self.error_estimators = nn.ModuleList(
-                [EREstimate(bottleneck_size = 3 + self.opt.bottleneck_size, output_dim=1) for i in range(0, max(self.subnetworks-1, 1))])
+                [EREstimate(bottleneck_size = 3 + self.opt.bottleneck_size + self.opt.num_classes, output_dim=1) for i in range(0, max(self.subnetworks-1, 1))])
         # for i in range(0, max(self.subnetworks-1, 1)):
         #     self.error_estimators[i] = self.error_estimators[i].to(self.device)
 
@@ -120,10 +120,8 @@ class Atlasnet(nn.Module):
         :param latent_vector: an opt.bottleneck size vector encoding a 3D shape or an image. size : batch, bottleneck
         :return: A deformed pointcloud os size : batch, nb_prim, num_point, 3
         """
-        # Sample points in the patches
-        # input_points = [self.template[i].get_regular_points(self.nb_pts_in_primitive,
-        #                                                     device=latent_vector.device)
-        #                 for i in range(self.opt.nb_primitives)]
+        threshold = self.opt.threshold
+        factor = self.opt.factor
         device = self.device
 
         sphere_points_normals, sphere_faces, sphere_adjacency, sphere_edges, sphere_edge2face = load_template(self.opt.number_points)
