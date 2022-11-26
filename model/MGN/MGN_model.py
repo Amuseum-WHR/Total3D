@@ -25,10 +25,10 @@ class EncoderDecoder(nn.Module):
         latent = torch.cat([latent, size_cls], 1)
         return self.decoder(latent, train=train)
 
-    def generate_mesh(self, x, size_cls):
+    '''def generate_mesh(self, x, size_cls):
         latent = self.encoder(x)
         latent = torch.cat([latent, size_cls], 1)
-        return self.decoder.generate_mesh(latent)
+        return self.decoder.generate_mesh(latent)'''
     
     '''def build_loss(self):
         loss_model = self.chamfer_loss

@@ -46,7 +46,9 @@ class PixDataset(Dataset):
         self.root_path = root_path    
         self.pix3d_path = pix3d_path
         self.transform = transform
-        self.file_idx = ['2.pkl']
+        self.file_idx = []
+        for i in range(13):
+            self.file_idx.append('{}.pkl'.format(i))
         self.device = device
 
     def __len__(self):
@@ -64,7 +66,7 @@ class PixDataset(Dataset):
         img:    图像,三维列表 H*W*channel, 但每张图片大小并不相同.
                     
         '''
-        data_pkl = pickle.load(open(self.root_path + self.pix3d_path + self.file_idx[0],'rb'))
+        data_pkl = pickle.load(open(self.root_path + self.pix3d_path + self.file_idx[idx],'rb'))
         data_img = data_pkl['img']
         gt_points = data_pkl['gt_3dpoints']
         data_class = data_pkl['class_id']
