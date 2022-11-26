@@ -57,7 +57,7 @@ To be filled.
 
     - [ ] output features ?
 
-- [ ] 数据怎么处理！？
+- [x] 数据怎么处理！？
 
     - [x] ODE 需要将场景中的物体划分后，假设有$N$个物品，以$N\times 3 \times 256 \times 256$输入，同时需要得到Geometry features($N \times N \times 64$)
 
@@ -66,12 +66,15 @@ To be filled.
     - [x] 弄明白 data label 比如说 data是image， label是空间坐标
     - [x] Pix 3D 在下载 
     - [x] SUN RGB-D ？ 
+    - [ ] g_feature 处理没搞定！
+    - [ ] collate_fn 是需要的！
 
     
 
 - [ ] Object Detection Network  尽早实现一下
 
     - [x] Attention Sum 注意一下是怎么实现
+    - [ ] trainer
 
 - [ ] 提出 IDAES
 
@@ -82,7 +85,7 @@ To be filled.
     - [x] AtlasNet 边缘检测 、 边缘强化 **实现** （用 某种 net 实现）？ 能否用传统CV实现？
     - [ ] Need to pre-train
 
-- [ ] 2D BOX and Get Geometry Feature
+- [ ] 2D BOX and Get Geometry Feature！
 
 - [ ] 
 
