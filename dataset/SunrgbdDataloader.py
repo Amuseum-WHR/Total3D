@@ -128,7 +128,7 @@ class SunDataset(Dataset):
         pe[:, 1::2] = torch.cos(position * div_term)
 
         boxes['g_feature'] = pe.view(n_objects * n_objects, rel_cfg.d_g)
-
+        # We may need to have a deep insight into the g_feature.
         # encode class
         cls_codes = torch.zeros([len(boxes['size_cls']), len(NYU40CLASSES)])
         cls_codes[range(len(boxes['size_cls'])), boxes['size_cls']] = 1
@@ -164,7 +164,8 @@ class SunDataset(Dataset):
         return {'image':image, 'depth': pil2tensor(depth).squeeze(), 'bdict':dic1,
                 'camera':camera, 'layout':layout,
                 'sequence_id': data_pkl['sequence_id']}
-
+# TODO: You need to finish a collate_fn. Maybe you can use the same key for the mask and whatever you need to do that. 
+# And remember to add the key "object_split".
 if __name__ == '__main__':
     '''
         dataloader: return index and a dict

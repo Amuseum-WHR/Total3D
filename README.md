@@ -66,7 +66,6 @@ To be filled.
     - [x] 弄明白 data label 比如说 data是image， label是空间坐标
     - [x] Pix 3D 在下载 
     - [x] SUN RGB-D ？ 
-    - [ ] g_feature 处理没搞定！
     - [ ] collate_fn 是需要的！
 
     
