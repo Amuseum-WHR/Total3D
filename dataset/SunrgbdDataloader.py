@@ -164,8 +164,12 @@ class SunDataset(Dataset):
         return {'image':image, 'depth': pil2tensor(depth).squeeze(), 'bdict':dic1,
                 'camera':camera, 'layout':layout,
                 'sequence_id': data_pkl['sequence_id']}
+
+def collate_fn(batch):
+    pass
 # TODO: You need to finish a collate_fn. Maybe you can use the same key for the mask and whatever you need to do that. 
 # And remember to add the key "object_split".
+
 if __name__ == '__main__':
     '''
         dataloader: return index and a dict
