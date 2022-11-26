@@ -201,7 +201,7 @@ class Atlasnet(nn.Module):
 
         return out_shape_points, out_sampled_mesh_points, out_indicators, current_edges, boundary_point_ids, current_faces
 
-    def generate_mesh(self, latent_vector, train = False, threshold = 0.1, factor = 1):
+    '''def generate_mesh(self, latent_vector, train = False, threshold = 0.1, factor = 1):
         assert latent_vector.size(0)==1, "input should have batch size 1!"
         import pymesh
 
@@ -290,4 +290,4 @@ class Atlasnet(nn.Module):
         # faces = faces[0:lenth]
         mesh = pymesh.form_mesh(vertices=out_points, faces = out_faces)
         return mesh
-        # return faces, out_points
+        # return faces, out_points'''

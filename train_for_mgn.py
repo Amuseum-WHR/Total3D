@@ -5,10 +5,9 @@ import time
 from easydict import EasyDict
 import model.MGN.MGN_model as model
 from model.loss import SVRLoss
-import dataset.pix3d_loader_single as pixed_loader
+import dataset.Pix3dDataloader as pixed_loader
 import torch
 from torch.utils.data import DataLoader
-import model.mesh_processor as mesh_processor
 
 def parser():
     parser = argparse.ArgumentParser()
@@ -26,13 +25,16 @@ def parser():
     parser.add_argument("--eps", type = float, default = 1e-08)
     parser.add_argument("--weight_decay", type = float, default = 1e-04)
 
-    parser.add_argument("--nepoch", type = float, default = 500, help = 'the total training epochs')
+    parser.add_argument("--nepoch", type = float, default = 400, help = 'the total training epochs')
 
     parser.add_argument("--model_path", type = str, default = "out", help = 'path of saved model')
     parser.add_argument("--log_path", type = str, default = "log", help = 'path of log info')
     parser.add_argument("--name", type = str, default = "test_code", help = 'name of this training process')
+    parser.add_argument("--save_freq", type = int, default = 100)
+    parser.add_argument("--check_freq", type = int, default = 4)
     
-    parser.add_argument("--demo", type = bool, default = True, help = 'demo or not')
+    
+    parser.add_argument("--demo", type = bool, default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
 
     opt = parser.parse_args()
@@ -43,7 +45,7 @@ def parser():
 
 opt = parser()
 if torch.cuda.is_available():
-    opt.device = torch.device(f"cuda")
+    opt.device = torch.device(f"cuda:1")
 else:
     opt.device = torch.device(f"cpu")
 
@@ -67,7 +69,12 @@ def mgn_loss(est_data, gt_data, opt=opt):
 
 net = model.EncoderDecoder(opt)
 dataset_train = pixed_loader.PixDataset(device=opt.device)
-pixed_loader = DataLoader(dataset_train, batch_size=1, shuffle=True)
+
+if opt.demo == False:
+    pixed_loader = DataLoader(dataset_train, batch_size=2, shuffle=True)
+else:
+    pixed_loader = DataLoader(dataset_train, batch_size=1, shuffle=False)
+
 optimizer = torch.optim.Adam(net.parameters(), lr=opt.lr, betas=opt.betas, eps=opt.eps, weight_decay=opt.weight_decay)
 
 if opt.demo == False:
@@ -75,6 +82,8 @@ if opt.demo == False:
     epochs = opt.nepoch
     for epoch in range(epochs):
         for idx, gt_data in enumerate(pixed_loader):
+            for item in gt_data:
+                gt_data[item].to(opt.device)
             mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces  = net(gt_data['img'], gt_data['cls'])
             est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                         'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids, 'faces':faces}
@@ -89,18 +98,20 @@ if opt.demo == False:
             message += '%s: %.5f' % ("loss_train_total", loss.item())
             with open(log_name, "a") as log_file:
                 log_file.write('%s\n' % message)
-        print('epoch {} loss: {:.4f}'.format(epoch, loss.item()))
+        if epoch % opt.check_freq == 0:
+            print('epoch {} loss: {:.4f}'.format(epoch, loss.item()))
 
-    print("saving net...")
-    if not os.path.exists(os.path.join(opt.model_path, opt.name)):
-        os.makedirs(os.path.join(opt.model_path, opt.name))
-    model_path = opt.model_path + '/'+ opt.name + '/model_epoch{}.pth'.format(epoch)
-    torch.save(net.state_dict(), model_path)
-    print("network saved")
+        if epoch % opt.save_freq == 0:
+            print("saving net...")
+            if not os.path.exists(os.path.join(opt.model_path, opt.name)):
+                os.makedirs(os.path.join(opt.model_path, opt.name))
+            model_path = opt.model_path + '/'+ opt.name + '/model_epoch{}.pth'.format(epoch)
+            torch.save(net.state_dict(), model_path)
+            print("network saved")
 
 else:
     import open3d as o3d
-    net.load_state_dict(torch.load(opt.model_path + '/'+ opt.name + '/model_epoch499.pth'))
+    net.load_state_dict(torch.load(opt.model_path + '/'+ opt.name + '/model_epoch399.pth'))
     net.eval()
     with torch.no_grad():
          for idx, gt_data in enumerate(pixed_loader):
@@ -110,12 +121,11 @@ else:
             point = point.cpu().numpy()
             pcd = o3d.geometry.PointCloud()
             pcd.points = o3d.utility.Vector3dVector(point)
-            o3d.io.write_point_cloud(opt.demo_path + '/example.ply', pcd)
+            o3d.io.write_point_cloud(opt.demo_path + '/example{}.ply'.format(idx), pcd)
             # mesh = net.generate_mesh(gt_data['img'], gt_data['cls'])
             # colormap = mesh_processor.ColorMap()
             # mesh_processor.save(mesh, opt.demo_path + '/example.ply', colormap)
-            print("mesh saved at " + opt.demo_path + '/example.ply')
-            break
+            print("mesh saved at " + opt.demo_path + '/example{}.ply'.format(idx))
     
 
 
