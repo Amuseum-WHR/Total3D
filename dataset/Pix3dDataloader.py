@@ -14,7 +14,7 @@ from torch.utils.data import Dataset,DataLoader
 import torchvision.transforms as transforms
 from scipy.spatial import cKDTree
 
-root = '../'    #根目录
+root = './'    #根目录
 pix3d = 'data/pix3d/train_test_data/'    #Pix3d数据目录
 mod = 'train'
 
@@ -51,11 +51,11 @@ class PixDataset(Dataset):
 
         if (mode == 'train'):
             self.transform = trans
-            with open(self.root_path + '/data/pix3d/splits/train.json') as json_file:
+            with open(self.root_path + 'data/pix3d/splits/train.json') as json_file:
                 self.file_idx = json.load(json_file)
         elif (mode == 'test'):
             self.transform = non_trans
-            with open(self.root_path + '/data/pix3d/splits/test.json') as json_file:
+            with open(self.root_path + 'data/pix3d/splits/test.json') as json_file:
                 self.file_idx = json.load(json_file) 
 
     def __len__(self):
@@ -73,7 +73,7 @@ class PixDataset(Dataset):
         img:    图像,三维列表 H*W*channel, 但每张图片大小并不相同.
                     
         '''
-        data_pkl = pickle.load(open(self.root_path + self.file_idx[idx][1:],'rb'))
+        data_pkl = pickle.load(open(self.root_path + self.file_idx[idx][2:],'rb'))
         data_img = data_pkl['img']
 
         gt_points = data_pkl['gt_3dpoints']

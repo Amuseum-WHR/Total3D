@@ -30,12 +30,14 @@ def parser():
     parser.add_argument("--model_path", type = str, default = "out", help = 'path of saved model')
     parser.add_argument("--log_path", type = str, default = "log", help = 'path of log info')
     parser.add_argument("--name", type = str, default = "test_code", help = 'name of this training process')
-    parser.add_argument("--save_freq", type = int, default = 100)
-    parser.add_argument("--check_freq", type = int, default = 4)
+    parser.add_argument("--save_freq", type = int, default = 10)
+    parser.add_argument("--check_freq", type = int, default = 400)
+    parser.add_argument("--load_epoch", type = int, default = 30)
     
     
     parser.add_argument("--demo", type = bool, default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
+    parser.add_argument("--demo_num", type = int, default = 1)
 
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
@@ -45,9 +47,12 @@ def parser():
 
 opt = parser()
 if torch.cuda.is_available():
-    opt.device = torch.device(f"cuda:1")
+    opt.device = torch.device(f"cuda:0")
 else:
     opt.device = torch.device(f"cpu")
+
+print("current device: " + str(opt.device))
+opt.load_path = opt.model_path + '/'+ opt.name + '/model_epoch{}.pth'.format(opt.load_epoch)
 
 # init_log
 log_path = os.path.join(opt.log_path, opt.name, 'summary')
@@ -68,7 +73,14 @@ def mgn_loss(est_data, gt_data, opt=opt):
     return {'total':total_loss, **svrloss}
 
 net = model.EncoderDecoder(opt)
-dataset_train = pixed_loader.PixDataset(device=opt.device)
+dataset_train = pixed_loader.PixDataset()
+
+if opt.load_epoch != None:
+    try:
+        net.load_state_dict(torch.load(opt.load_path))
+        print("Loading pretrianed model " + opt.load_path)
+    except:
+        print("Can not find pretrianed model " + opt.load_path)
 
 if opt.demo == False:
     pixed_loader = DataLoader(dataset_train, batch_size=2, shuffle=True)
@@ -77,13 +89,17 @@ else:
 
 optimizer = torch.optim.Adam(net.parameters(), lr=opt.lr, betas=opt.betas, eps=opt.eps, weight_decay=opt.weight_decay)
 
+print("---------------------Start Training---------------------")
+
 if opt.demo == False:
     log_start_train()
     epochs = opt.nepoch
     for epoch in range(epochs):
         for idx, gt_data in enumerate(pixed_loader):
             for item in gt_data:
-                gt_data[item].to(opt.device)
+                gt_data[item] = gt_data[item].to(opt.device)
+                if item == 'mesh_points':
+                    gt_data[item] = gt_data[item].float()
             mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces  = net(gt_data['img'], gt_data['cls'])
             est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                         'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids, 'faces':faces}
@@ -98,8 +114,8 @@ if opt.demo == False:
             message += '%s: %.5f' % ("loss_train_total", loss.item())
             with open(log_name, "a") as log_file:
                 log_file.write('%s\n' % message)
-        if epoch % opt.check_freq == 0:
-            print('epoch {} loss: {:.4f}'.format(epoch, loss.item()))
+            if idx % opt.check_freq == 0:
+                print('epoch {} step {} loss: {:.4f}'.format(epoch, idx, loss.item()))
 
         if epoch % opt.save_freq == 0:
             print("saving net...")
@@ -111,10 +127,11 @@ if opt.demo == False:
 
 else:
     import open3d as o3d
-    net.load_state_dict(torch.load(opt.model_path + '/'+ opt.name + '/model_epoch399.pth'))
     net.eval()
+    num = 0
     with torch.no_grad():
          for idx, gt_data in enumerate(pixed_loader):
+            gt_data['mesh_points'] = gt_data['mesh_points'].float()
             _,point,_,_,_,_ = net(gt_data['img'], gt_data['cls'])
             point = point[-1][0]
             point = point.permute(1,0)
@@ -126,6 +143,16 @@ else:
             # colormap = mesh_processor.ColorMap()
             # mesh_processor.save(mesh, opt.demo_path + '/example.ply', colormap)
             print("mesh saved at " + opt.demo_path + '/example{}.ply'.format(idx))
+
+            imagenet_std    = torch.Tensor([0.229, 0.224, 0.225]).view(3,1,1)
+            imagenet_mean   = torch.Tensor([0.485, 0.456, 0.406]).view(3,1,1)
+            img = gt_data['img'][0] * imagenet_std + imagenet_mean
+            import torchvision.transforms as transforms
+            img = transforms.ToPILImage()(img)
+            img.save(opt.demo_path + '/example{}.png'.format(idx))
+            if num > opt.demo_num:
+                break 
+            num += 1
     
 
 
