@@ -124,7 +124,7 @@ class SunDataset(Dataset):
         pe[:, 1::2] = torch.cos(position * div_term)
 
         boxes['g_feature'] = pe.view(n_objects * n_objects, rel_cfg.d_g)
-        # We may need to have a deep insight into the g_feature.
+
         # encode class
         cls_codes = torch.zeros([len(boxes['size_cls']), len(NYU40CLASSES)])
         cls_codes[range(len(boxes['size_cls'])), boxes['size_cls']] = 1
@@ -210,6 +210,12 @@ def collate_fn(batch):
 
     return collated_batch
 
+def Sunrgbd_dataloader(mode='train'):
+    dataloader = DataLoader(dataset=SunDataset(mode = mode),
+                            shuffle=(mode == 'train'),
+                            collate_fn=collate_fn)
+    return dataloader
+
 if __name__ == '__main__':
     '''
         dataloader: return index and a dict
@@ -218,4 +224,4 @@ if __name__ == '__main__':
         'depth': torch.Size([1, 256, 256])
     '''
     dataset2 = SunDataset(transform=trans, root_path=root, RGBD_path=sunrgbd, mode=mod,device=div)
-
+    dataloader = Sunrgbd_dataloader(mode=mod)
