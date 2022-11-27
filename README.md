@@ -29,10 +29,10 @@ To be filled.
     parser = ArgumentParser()
     
     parser.add_argument(
-        "--n_epochs", default=41, type=int, help="the number of epochs to run."
+    "--n_epochs", default=41, type=int, help="the number of epochs to run."
     )
     parser.add_argument(
-        "--lr", default = 0.0001, type = float, help="learning rate."
+    "--lr", default = 0.0001, type = float, help="learning rate."
     )
     
     return parser.parse_args()
@@ -57,28 +57,41 @@ To be filled.
 
     - [ ] output features ?
 
-- [ ] 数据怎么处理！？
+- [x] 数据怎么处理！？
 
-    - [ ] ODE 需要将场景中的物体划分后，假设有$N$个物品，以$N\times 3 \times 256 \times 256$输入，同时需要得到Geometry features($N \times N \times 64$)
+    - [x] ODE 需要将场景中的物体划分后，假设有$N$个物品，以$N\times 3 \times 256 \times 256$输入，同时需要得到Geometry features($N \times N \times 64$)
 
-        
+- [x] 数据集处理、接口 dataset.load 适配后续feature extraction
 
-- [ ] 数据集处理、接口 dataset.load 适配后续feature extraction
+    - [x] 弄明白 data label 比如说 data是image， label是空间坐标
+    - [x] Pix 3D 在下载 
+    - [x] SUN RGB-D ？ 
+    - [ ] collate_fn 是需要的！
 
-    - [ ] 弄明白 data label 比如说 data是image， label是空间坐标
-    - [ ] Pix 3D 在下载 
-    - [ ] SUN RGB-D ？ 
-
-- [ ] 
+    
 
 - [ ] Object Detection Network  尽早实现一下
 
-    - [ ] Attention Sum 注意一下是怎么实现
+    - [x] Attention Sum 注意一下是怎么实现
+    - [ ] trainer
 
 - [ ] 提出 IDAES
 
 - [ ] Mesh Generation Net 
 
-    - [ ] 除理大小不同的input image
-    - [ ] 不同dimension的图片 如何用一个网络做encoding
-    - [ ] AtlasNet 边缘检测 、 边缘强化 **实现** （用 某种 net 实现）？ 能否用传统CV实现？
+    - [x] 除理大小不同的input image
+    - [x] 不同size的图片 如何用一个网络做encoding *ReShape!*
+    - [x] AtlasNet 边缘检测 、 边缘强化 **实现** （用 某种 net 实现）？ 能否用传统CV实现？
+    - [ ] Need to pre-train
+
+- [ ] 2D BOX and Get Geometry Feature！
+
+- [ ] 
+
+# IDEAS
+
+1.    Style of Square? 与BaseLine不同的“放置”、“形变” 方式？
+2.   滤镜
+3.   如何充分利用 3D Box ？
+4.   图像编辑？ 3D建模层面编辑。
+5.   Add another thing into the 3D space! With a box to occupy some space.

@@ -124,7 +124,7 @@ class SunDataset(Dataset):
         pe[:, 1::2] = torch.cos(position * div_term)
 
         boxes['g_feature'] = pe.view(n_objects * n_objects, rel_cfg.d_g)
-
+        # We may need to have a deep insight into the g_feature.
         # encode class
         cls_codes = torch.zeros([len(boxes['size_cls']), len(NYU40CLASSES)])
         cls_codes[range(len(boxes['size_cls'])), boxes['size_cls']] = 1
@@ -161,6 +161,7 @@ class SunDataset(Dataset):
                 'camera':camera, 'layout':layout,
                 'sequence_id': data_pkl['sequence_id']}
 
+<<<<<<< HEAD
 def recursive_convert_to_torch(elem):
     if torch.is_tensor(elem):
         return elem
@@ -209,6 +210,12 @@ def collate_fn(batch):
     collated_batch['obj_split'] = torch.tensor([[sum(interval_list[:i]), sum(interval_list[:i+1])] for i in range(len(interval_list))])
 
     return collated_batch
+=======
+def collate_fn(batch):
+    pass
+# TODO: You need to finish a collate_fn. Maybe you can use the same key for the mask and whatever you need to do that. 
+# And remember to add the key "object_split".
+>>>>>>> a39792dafee91b61719a62ca6a513fcd04b14e0c
 
 if __name__ == '__main__':
     '''

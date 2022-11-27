@@ -17,7 +17,6 @@ from scipy.spatial import cKDTree
 root = '../'    #根目录
 pix3d = 'data/pix3d/train_test_data/'    #Pix3d数据目录
 mod = 'train'
-div = "cuda"
 
 HEIGHT_PATCH = 256
 WIDTH_PATCH = 256
@@ -40,7 +39,7 @@ trans = transforms.Compose([
 ])
 
 class PixDataset(Dataset):
-    def __init__(self,root_path = root, pix3d_path = pix3d, mode = mod, transform = None, device = "cuda"):
+    def __init__(self,root_path = root, pix3d_path = pix3d, mode = mod, transform = None):
         '''
         self.root_path:    Get the data_path
         self.sunrgbd_path = pix3d_path:    Get the Sunrgbd dataset path
@@ -49,7 +48,6 @@ class PixDataset(Dataset):
         self.root_path = root_path    
         self.pix3d_path = pix3d_path
         self.transform = transform
-        self.device = device
 
         if (mode == 'train'):
             self.transform = trans
@@ -107,23 +105,23 @@ class PixDataset(Dataset):
         
         if self.transform is None:
             sample = {'sequence_id':data_pkl['sample_id'],
-                      'img':data_img.to(self.device),
-                      'cls':cls_codes.to(self.device),
-                      'mesh_points':gt_points.to(self.device),
-                      'densities': densities.to(self.device)}
+                      'img':data_img,
+                      'cls':cls_codes,
+                      'mesh_points':gt_points,
+                      'densities': densities}
             return sample
         else:
             data_raw = data_img
             data_img = self.transform(data_img)
             sample = {'sequence_id':data_pkl['sample_id'],
-                      'img':data_img.to(self.device),
-                      'cls':cls_codes.to(self.device),
-                      'mesh_points':gt_points.to(self.device),
-                      'densities': densities.to(self.device)}
+                      'img':data_img,
+                      'cls':cls_codes,
+                      'mesh_points':gt_points,
+                      'densities': densities}
             return sample
         
 
 
 
 if __name__ == '__main__':
-    dataset2 = PixDataset(transform=trans, root_path=root, pix3d_path=pix3d, mode=mod,device=div)
+    dataset2 = PixDataset(transform=trans, root_path=root, pix3d_path=pix3d, mode=mod)

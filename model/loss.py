@@ -1,8 +1,26 @@
+'''
+Loss Functions
+Significantly Based on Total3DUnderstanding's models/loss.py
+'''
+
 import torch
 import torch.nn as nn
 import auxiliary.ChamferDistancePytorch.chamfer3D.dist_chamfer_3D as dist_chamfer_3D
 
 binary_cls_criterion = nn.BCEWithLogitsLoss(reduction='mean')
+reg_criterion = nn.SmoothL1Loss(reduction='mean')
+cls_criterion = nn.CrossEntropyLoss(reduction='mean')
+
+
+def cls_reg_loss(est_cls, gt_cls, est_reg, gt_reg):
+    cls_loss = cls_criterion(est_cls, gt_cls)
+    if len(est_reg.size()) == 3:
+        est_reg = torch.gather(est_reg, 1, gt_cls.view(gt_reg.size(0), 1, 1).expand(gt_reg.size(0), 1, gt_reg.size(1)))
+    else:
+        est_reg = torch.gather(est_reg, 1, gt_cls.view(gt_reg.size(0), 1).expand(gt_reg.size(0), 1))
+    est_reg = est_reg.squeeze(1)  # Only Calculate the dimension of feature where cls is 1 in goundtruth.     
+    reg_loss = reg_criterion(est_reg, gt_reg) 
+    return cls_loss, reg_loss
 
 class BaseLoss(object):
     '''base loss class'''
@@ -79,3 +97,21 @@ class SVRLoss(BaseLoss):
 
         return {'chamfer_loss': chamfer_loss, 'face_loss': 0.01 * face_loss,
                 'edge_loss': 0.1 * edge_loss, 'boundary_loss': 0.5 * boundary_loss}
+
+class Detection_Loss(BaseLoss):
+    def __init__(self, weight = 1, cls_reg_ratio = 10):
+        super(BaseLoss, self).__init__(weight = weight)
+        self.cls_reg_ratio = cls_reg_ratio
+
+    def __call__(self, est_data, gt_data):
+        size_reg_loss = reg_criterion(est_data['size_reg'], gt_data['size_reg']) * self.cls_reg_ratio
+        ori_cls_loss, ori_reg_loss = cls_reg_loss(est_data['ori_cls'], gt_data['ori_cls'], est_data['ori_reg'], gt_data['ori_cls'])
+        centroid_cls_loss, centroid_reg_loss = cls_reg_loss(est_data['centroid_cls'], gt_data['centroid_cls'], est_data['centroid_reg'], gt_data['centroid_reg'])
+        offset_reg_loss = reg_criterion(est_data['offset_2D'], gt_data['offset_2D'])
+
+        total_loss = size_reg_loss + ori_cls_loss + ori_reg_loss + centroid_cls_loss + centroid_reg_loss + offset_reg_loss
+        return {'total': total_loss, 
+                'size_reg_loss': size_reg_loss, 'ori_cls_loss': ori_cls_loss, 'ori_reg_loss': ori_reg_loss,
+                'centroid_cls_loss': centroid_cls_loss, 'centroid_reg_loss': centroid_reg_loss,
+                'offset_reg_loss': offset_reg_loss}
+        
