@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 from torch.utils.data import Dataset,DataLoader
 import torchvision.transforms as transforms
 from scipy.spatial import cKDTree
+import collections
 
 class Relation_Config(object):
     def __init__(self):
@@ -31,7 +32,7 @@ NYU40CLASSES = ['void',
                 'bathtub', 'bag', 'otherstructure', 'otherfurniture', 'otherprop']
 rel_cfg = Relation_Config()
 d_model = int(rel_cfg.d_g/4)
-
+default_collate = torch.utils.data.dataloader.default_collate
 
 root = '../'    #根目录
 sunrgbd = 'data/sunrgbd/sunrgbd_train_test_data/'    #Pix3d数据目录
@@ -100,11 +101,6 @@ class SunDataset(Dataset):
         camera = data_pkl['camera']
         boxes = data_pkl['boxes']
 
-        # I try to visualize the original image
-        
-        print(np.shape(image))
-        print(np.shape(depth))
-
         # build relational geometric features for each object
         n_objects = boxes['bdb2D_pos'].shape[0]
 
@@ -161,15 +157,65 @@ class SunDataset(Dataset):
                         arr.append(boxes[key][i])
                 dic1[key] = arr
 
-        return {'image':image, 'depth': pil2tensor(depth).squeeze(), 'bdict':dic1,
+        return {'image':image, 'depth': pil2tensor(depth).squeeze(), 'boxes_batch':dic1,
                 'camera':camera, 'layout':layout,
                 'sequence_id': data_pkl['sequence_id']}
+
+def recursive_convert_to_torch(elem):
+    if torch.is_tensor(elem):
+        return elem
+    elif type(elem).__module__ == 'numpy':
+        if elem.size == 0:
+            return torch.zeros(elem.shape).type(torch.DoubleTensor)
+        else:
+            return torch.from_numpy(elem)
+    elif isinstance(elem, int):
+        return torch.LongTensor([elem])
+    elif isinstance(elem, float):
+        return torch.DoubleTensor([elem])
+    elif isinstance(elem, collections.Mapping):
+        return {key: recursive_convert_to_torch(elem[key]) for key in elem}
+    elif isinstance(elem, collections.Sequence):
+        return [recursive_convert_to_torch(samples) for samples in elem]
+    else:
+        return elem
+
+def collate_fn(batch):
+    """
+    Data collater.
+    Assumes each instance is a dict.
+    Applies different collation rules for each field.
+    Args:
+        batches: List of loaded elements via Dataset.__getitem__
+    """
+    collated_batch = {}
+    # iterate over keys
+    for key in batch[0]:
+        if key == 'boxes_batch':
+            collated_batch[key] = dict()
+            for subkey in batch[0][key]:
+                if subkey == 'mask':
+                    tensor_batch = [elem[key][subkey] for elem in batch]
+                else:
+                    list_of_tensor = [recursive_convert_to_torch(elem[key][subkey]) for elem in batch]
+                    tensor_batch = torch.cat(list_of_tensor)
+                collated_batch[key][subkey] = tensor_batch
+        elif key == 'depth':
+            collated_batch[key] = [elem[key] for elem in batch]
+        else:
+            collated_batch[key] = default_collate([elem[key] for elem in batch])
+
+    interval_list = [elem['boxes_batch']['patch'].shape[0] for elem in batch]
+    collated_batch['obj_split'] = torch.tensor([[sum(interval_list[:i]), sum(interval_list[:i+1])] for i in range(len(interval_list))])
+
+    return collated_batch
 
 if __name__ == '__main__':
     '''
         dataloader: return index and a dict
-        dict_keys: 'rgb_img', 'depth_map', 'boxes', 'camera', 'layout', 'sequence_id'
+        dict_keys: 'image', 'depth', 'boxes_batch', 'camera', 'layout', 'sequence_id'
         'image': torch.Size([1, 3, 256, 256])
         'depth': torch.Size([1, 256, 256])
     '''
     dataset2 = SunDataset(transform=trans, root_path=root, RGBD_path=sunrgbd, mode=mod,device=div)
+
