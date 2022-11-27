@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from model.ODN import ODN_model
+from model.ODN.ODN_model import ODN
 from configs import data_config
 from model import loss
 from dataset.SunrgbdDataloader import SunDataset, collate_fn
@@ -60,15 +60,15 @@ class Trainer():
         '''
 
         device = self.device
-        patch = data['boxes']['patch'].to(device)
-        g_features = data['boxes']['g_feature'].float().to(device)
-        size_reg = data['boxes']['size_reg'].float().to(device)
-        size_cls = data['boxes']['size_cls'].float().to(device)
-        ori_reg = data['boxes']['ori_reg'].float().to(device)
-        ori_cls = data['boxes']['ori_cls'].float().to(device)
-        centroid_reg = data['boxes']['centroid_reg'].float().to(device)
-        centroid_cls = data['boxes']['centroid_cls'].float().to(device)
-        offset_2D = data['boxes']['delta_2D'].float().to(device)
+        patch = data['boxes_batch']['patch'].to(device)
+        g_features = data['boxes_batch']['g_feature'].float().to(device)
+        size_reg = data['boxes_batch']['size_reg'].float().to(device)
+        size_cls = data['boxes_batch']['size_cls'].float().to(device) # The reason to use long is that we will cat it on our embeddings. 
+        ori_reg = data['boxes_batch']['ori_reg'].float().to(device)
+        ori_cls = data['boxes_batch']['ori_cls'].long().to(device)
+        centroid_reg = data['boxes_batch']['centroid_reg'].float().to(device)
+        centroid_cls = data['boxes_batch']['centroid_cls'].long().to(device)
+        offset_2D = data['boxes_batch']['delta_2D'].float().to(device)
         split = data['obj_split']
         rel_pair_count = torch.cat([torch.tensor([0]), torch.cumsum(
             torch.pow(data['obj_split'][:,1]- data['obj_split'][:,0],2),dim = 0)],dim = 0)
@@ -79,7 +79,8 @@ class Trainer():
     def train_step(self, data):
         self.optimizer.zero_grad()
         data = self.to_device(data)
-        est_data = self.net(data)
+        
+        est_data = self.net(data['patch'], data['g_features'], data['split'], data['rel_pair_counts'], data['size_cls'])
         loss = self.Loss(est_data, data)
         loss['total'].backward()
         self.optimizer.step()
@@ -90,7 +91,7 @@ class Trainer():
         # loss = self.Loss(est_data, data)
         # return loss
 
-if __name__ == "main":
+if __name__ == "__main__":
     opt = parser()
     if torch.cuda.is_available():
         opt.device = torch.device("cuda:1")
@@ -109,28 +110,29 @@ if __name__ == "main":
                 log_file.write('================ Training Loss (%s) ================\n' % now)
 
     Writer = SummaryWriter()
-    dataset = SunDataset()
-    net = ODN_model(data_config)
-    dataset = SunDataset(device = opt.device)
-    Train_loader = DataLoader(dataset, batch_size= 2, collate_fn=collate_fn, shuffle = True)
+    dataset = SunDataset(root_path='.', device= opt.device)
+    cfg = data_config.Config('sunrgbd')
+    net = ODN(cfg)
+    Train_loader = DataLoader(dataset, batch_size= 2, collate_fn=collate_fn, shuffle = False)
 
     optimizer = torch.optim.Adam(net.parameters(), lr = opt.lr, betas = opt.betas, eps = opt.eps, weight_decay=opt.weight_decay)    
-    trainer = Trainer(net, optimizer, loss.Detection_Loss, opt.device)
+    trainer = Trainer(net, optimizer, loss.Detection_Loss(), opt.device)
 
     epochs = opt.nepoch
     net.train = True
     for epoch in range(epochs):
         for idx, gt_data in enumerate(Train_loader):
             loss = trainer.train_step(gt_data)
-            Writer.add_scalar('train/loss', scalar_value=loss, global_step=idx + epochs * len(Train_loader))
+            for key, value in loss.items():
+                Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epochs * len(Train_loader))
             message = '( epoch: %d, ) ' % (epoch)
             message += '( step: %d, ) ' % (idx)
-            message += '%s: %.5f' % ("loss_train_total", loss.item())
+            message += '%s: %.5f' % ("loss_train_total", loss['total'])
             with open(log_name, "a") as log_file:
                 log_file.write('%s\n' % message)
                 
         if epoch % opt.check_freq == 0:
-            print('epoch {} loss: {:.4f}'.format(epoch, loss.item()))
+            print('epoch {} loss: {:.4f}'.format(epoch, loss['total']))
 
         if (epoch % opt.save_freq ==0 ):
             print("saving nat...")            

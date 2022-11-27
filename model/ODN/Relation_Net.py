@@ -19,9 +19,9 @@ class RelationNet(nn.Module):
         # self.threshold = nn.ReLU()
         self.threshold = nn.Threshold(1e-6, 1e-6) # In paper Relation Networks, it use Relu
         self.softmax = nn.Softmax(dim = 1)
-        self.scale_layer = nn.Cov1d(1,1,1)
+        self.scale_layer = nn.Conv1d(1,1,1)
 
-    def forward(self, a_featrue, g_feature, split, pair_counts):
+    def forward(self, a_feature, g_feature, split, pair_counts):
         '''
         a_feature: PatchSize (sum of Several N_i) x 2048, appearance feature
         g_feature: Number of pairs(sum of several N_i^2) x 64, geometric feature
@@ -31,10 +31,10 @@ class RelationNet(nn.Module):
 
         g_weight = self.G(g_feature)
         g_weight = self.threshold(g_weight) # N^2 x Nr
-        g_weight.transpose(0,1) # Nr x N^2
+        g_weight = g_weight.transpose(0,1) # Nr x N^2
 
-        k_featrue = self.K(a_featrue) # N x (Nr x dk)
-        q_feature = self.Q(a_featrue) # N x (Nr x dk)
+        k_featrue = self.K(a_feature) # N x (Nr x dk)
+        q_feature = self.Q(a_feature) # N x (Nr x dk)
 
         k_featrue = k_featrue.view(-1, self.Nr, self.dk) # N x Nr x dk
         q_feature = q_feature.view(-1, self.Nr, self.dk) # N x Nr x dk
@@ -42,7 +42,7 @@ class RelationNet(nn.Module):
         k_featrue = k_featrue.transpose(0, 1) # Nr x N x dk
         q_feature = q_feature.transpose(0, 1) # Nr x N x dk
 
-        v_feature = a_featrue.view(a_featrue.size(0), self.Nr, -1) #N x Nr x (2048/Nr)
+        v_feature = a_feature.view(a_feature.size(0), self.Nr, -1) #N x Nr x (2048/Nr)
         v_feature = v_feature.transpose(0, 1) # Nr x N x (2048/Nr)
 
         sqrt_dk = torch.sqrt(torch.tensor(self.dk))
@@ -61,7 +61,7 @@ class RelationNet(nn.Module):
 
             sample_r_weight = self.softmax(torch.log(sample_g_weights) + sample_a_weight) # Nr x N x N 
 
-            sample_v_feature = a_featrue[:,interval[0]:interval[1],:] # Nr x N x 2048/Nr We use the different part of a_feature with different weight.
+            sample_v_feature = v_feature[:,interval[0]:interval[1],:] # Nr x N x 2048/Nr We use the different part of a_feature with different weight.
 
             sample_r_feature = torch.bmm(sample_v_feature.transpose(1,2) ,sample_r_weight) # Nr x 2048/Nr x N
 

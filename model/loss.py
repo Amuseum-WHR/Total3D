@@ -100,7 +100,7 @@ class SVRLoss(BaseLoss):
 
 class Detection_Loss(BaseLoss):
     def __init__(self, weight = 1, cls_reg_ratio = 10):
-        super(BaseLoss, self).__init__(weight = weight)
+        super(Detection_Loss, self).__init__(weight = weight)
         self.cls_reg_ratio = cls_reg_ratio
 
     def __call__(self, est_data, gt_data):
@@ -110,6 +110,7 @@ class Detection_Loss(BaseLoss):
         offset_reg_loss = reg_criterion(est_data['offset_2D'], gt_data['offset_2D'])
 
         total_loss = size_reg_loss + ori_cls_loss + ori_reg_loss + centroid_cls_loss + centroid_reg_loss + offset_reg_loss
+        print("total:", total_loss)
         return {'total': total_loss, 
                 'size_reg_loss': size_reg_loss, 'ori_cls_loss': ori_cls_loss, 'ori_reg_loss': ori_reg_loss,
                 'centroid_cls_loss': centroid_cls_loss, 'centroid_reg_loss': centroid_reg_loss,

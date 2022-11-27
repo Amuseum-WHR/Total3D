@@ -12,11 +12,11 @@ from configs.data_config import NYU40CLASSES
 class ODN(nn.Module):
     def __init__(self, cfg):
         super(ODN, self).__init__()
-        bin = cfg.dataset_config.bins
+        bin = cfg.bins
         self.ORI_BIN_NUM = len(bin['ori_bin'])
         self.CENTER_BIN_NUM = len(bin['centroid_bin'])
 
-        self.resnet = resnet.resnet34(pretrained = False)
+        self.resnet = resnet.resnet34_Half(pretrained = False)
 
         self.relnet = RelationNet()
 
@@ -53,7 +53,7 @@ class ODN(nn.Module):
                 m.weight.data.normal_(0, 0.01)
                 if hasattr(m.bias, 'data'):
                     m.bias.data.zero_()
-    def forward(self, x, Geometry_features, split, pair_counts, target):
+    def forward(self, x, g_features, split, pair_counts, target):
         '''
             x: Patch x Channel x Hight x Width
             Geometry_feature: sum of pairs x 64
@@ -63,26 +63,24 @@ class ODN(nn.Module):
         '''
         a_featrues = self.resnet(x)
         a_features = a_featrues.view(a_featrues.size(0),-1) # N x 2048
-        r_features = self.relnet(a_featrues, Geometry_features, split, pair_counts) # N x 2048
-        
+        r_features = self.relnet(a_featrues, g_features, split, pair_counts) # N x 2048
         a_r_featrues = torch.add(a_features, r_features) # N x 2048
         a_r_featrues = torch.cat([a_r_featrues, target], dim = 1) # N x (2048 + class)
-
         # Use Fc to predict all we want
         offset = self.fc1(a_r_featrues)
         offset = self.relu(offset)
         offset = self.dropout(offset)
-        offset = self.fc2(a_r_featrues)
+        offset = self.fc2(offset)
 
         distance = self.fc3(a_r_featrues)
         distance = self.relu(distance)
         distance = self.dropout(distance)
-        distance = self.fc4(a_r_featrues)
+        distance = self.fc4(distance)
         distance = distance.view(-1, self.CENTER_BIN_NUM, 2)
         distance_cls = distance[:,:,0]
-        distance_reg = distance[:,:,0]
+        distance_reg = distance[:,:,1]
 
-        size = self.fc4(a_r_featrues)
+        size = self.fc5(a_r_featrues)
         size = self.relu(size)
         size = self.dropout(size)
         size = self.fc6(size)
@@ -94,5 +92,7 @@ class ODN(nn.Module):
         orientation = orientation.view(-1, self.ORI_BIN_NUM, 2)
         orientation_cls = orientation[:,:,0]
         orientation_reg = orientation[:,:,1]
-
-        return size, orientation_reg, orientation_cls, distance_reg, distance_cls, offset
+        object_output = {'size_reg':size, 'ori_reg':orientation_reg,
+                             'ori_cls':orientation_cls, 'centroid_reg':distance_reg,
+                             'centroid_cls':distance_cls, 'offset_2D':offset}
+        return object_output
