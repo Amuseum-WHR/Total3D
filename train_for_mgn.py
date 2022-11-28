@@ -2,6 +2,7 @@ import argparse
 import os
 import datetime
 import time
+import numpy as np
 from easydict import EasyDict
 import model.MGN.MGN_model as model
 from model.loss import SVRLoss
@@ -32,12 +33,12 @@ def parser():
     parser.add_argument("--name", type = str, default = "test_code", help = 'name of this training process')
     parser.add_argument("--save_freq", type = int, default = 10)
     parser.add_argument("--check_freq", type = int, default = 400)
-    parser.add_argument("--load_epoch", type = int, default = 30)
+    parser.add_argument("--load_epoch", type = int, default = 50)
     
     
     parser.add_argument("--demo", type = bool, default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
-    parser.add_argument("--demo_num", type = int, default = 1)
+    parser.add_argument("--demo_num", type = int, default = 3)
 
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
@@ -46,7 +47,7 @@ def parser():
     return opt
 
 opt = parser()
-if torch.cuda.is_available():
+if torch.cuda.is_available() and opt.demo == False:
     opt.device = torch.device(f"cuda:0")
 else:
     opt.device = torch.device(f"cpu")
@@ -85,7 +86,7 @@ if opt.load_epoch != None:
 if opt.demo == False:
     pixed_loader = DataLoader(dataset_train, batch_size=2, shuffle=True)
 else:
-    pixed_loader = DataLoader(dataset_train, batch_size=1, shuffle=False)
+    pixed_loader = DataLoader(dataset_train, batch_size=1, shuffle=True)
 
 optimizer = torch.optim.Adam(net.parameters(), lr=opt.lr, betas=opt.betas, eps=opt.eps, weight_decay=opt.weight_decay)
 
@@ -93,14 +94,16 @@ print("---------------------Start Training---------------------")
 
 if opt.demo == False:
     log_start_train()
+    start_epoch = opt.load_epoch + 1
     epochs = opt.nepoch
-    for epoch in range(epochs):
+    for epoch in range(start_epoch, start_epoch+epochs):
         for idx, gt_data in enumerate(pixed_loader):
             for item in gt_data:
-                gt_data[item] = gt_data[item].to(opt.device)
-                if item == 'mesh_points':
-                    gt_data[item] = gt_data[item].float()
-            mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces  = net(gt_data['img'], gt_data['cls'])
+                if item != 'sequence_id':
+                    gt_data[item] = gt_data[item].to(opt.device)
+            gt_data['mesh_points'] = gt_data[ 'mesh_points'].float()
+
+            mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces  = net(gt_data['img'], gt_data['cls'], threshold=opt.threshold, factor=opt.factor)
             est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                         'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids, 'faces':faces}
             loss_dict = mgn_loss(est_data, gt_data)
@@ -128,17 +131,24 @@ if opt.demo == False:
 else:
     import open3d as o3d
     net.eval()
-    num = 0
+    num = 1
     with torch.no_grad():
          for idx, gt_data in enumerate(pixed_loader):
+            if num > opt.demo_num:
+                break 
             gt_data['mesh_points'] = gt_data['mesh_points'].float()
-            _,point,_,_,_,_ = net(gt_data['img'], gt_data['cls'])
+            point,_,_,_,_,faces = net(gt_data['img'], gt_data['cls'], train=False, threshold=opt.threshold, factor=opt.factor)
             point = point[-1][0]
+            point[2,:] *= -1
             point = point.permute(1,0)
             point = point.cpu().numpy()
-            pcd = o3d.geometry.PointCloud()
-            pcd.points = o3d.utility.Vector3dVector(point)
-            o3d.io.write_point_cloud(opt.demo_path + '/example{}.ply'.format(idx), pcd)
+            faces = faces[0]
+            faces = faces - 1
+            import pymesh
+            pymesh.save_mesh_raw(opt.demo_path + '/example{}.ply'.format(idx), point, faces)
+            # pcd = o3d.geometry.PointCloud()
+            # pcd.points = o3d.utility.Vector3dVector(point)
+            # o3d.io.write_point_cloud(opt.demo_path + '/example{}.ply'.format(idx), pcd)
             # mesh = net.generate_mesh(gt_data['img'], gt_data['cls'])
             # colormap = mesh_processor.ColorMap()
             # mesh_processor.save(mesh, opt.demo_path + '/example.ply', colormap)
@@ -150,8 +160,6 @@ else:
             import torchvision.transforms as transforms
             img = transforms.ToPILImage()(img)
             img.save(opt.demo_path + '/example{}.png'.format(idx))
-            if num > opt.demo_num:
-                break 
             num += 1
     
 

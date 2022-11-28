@@ -20,10 +20,10 @@ class EncoderDecoder(nn.Module):
         self.to(opt.device)
         self.eval()
 
-    def forward(self, x, size_cls, train=True):
+    def forward(self, x, size_cls, train=True, threshold=0.1, factor=1):
         latent = self.encoder(x)
         latent = torch.cat([latent, size_cls], 1)
-        return self.decoder(latent, train=train)
+        return self.decoder(latent, train=train, threshold=threshold, factor=factor)
 
     '''def generate_mesh(self, x, size_cls):
         latent = self.encoder(x)
