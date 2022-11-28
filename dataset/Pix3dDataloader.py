@@ -4,12 +4,8 @@
 import json
 import torch
 from torch.utils.data import Dataset
-import pandas as pd
 import numpy as np
 import pickle
-from PIL import Image
-from matplotlib import image
-from matplotlib import pyplot as plt
 from torch.utils.data import Dataset,DataLoader
 import torchvision.transforms as transforms
 from scipy.spatial import cKDTree
