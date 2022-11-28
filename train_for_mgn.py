@@ -36,7 +36,7 @@ def parser():
     parser.add_argument("--load_epoch", type = int, default = 50)
     
     
-    parser.add_argument("--demo", type = bool, default = True, help = 'demo or not')
+    parser.add_argument("--demo", type = bool, default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
     parser.add_argument("--demo_num", type = int, default = 3)
 
@@ -98,7 +98,11 @@ if opt.demo == False:
     epochs = opt.nepoch
     for epoch in range(start_epoch, start_epoch+epochs):
         for idx, gt_data in enumerate(pixed_loader):
-            gt_data[ 'mesh_points'] = gt_data[ 'mesh_points'].float()
+            for item in gt_data:
+                if item != 'sequence_id':
+                    gt_data[item] = gt_data[item].to(opt.device)
+            gt_data['mesh_points'] = gt_data[ 'mesh_points'].float()
+
             mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces  = net(gt_data['img'], gt_data['cls'], threshold=opt.threshold, factor=opt.factor)
             est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                         'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids, 'faces':faces}
