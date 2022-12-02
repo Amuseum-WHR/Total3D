@@ -24,6 +24,10 @@ class EncoderDecoder(nn.Module):
         latent = self.encoder(x)
         latent = torch.cat([latent, size_cls], 1)
         return self.decoder(latent, train=train, threshold=threshold, factor=factor)
+    
+    def freeze_tmn(self):
+        self.decoder.freeze_tmn()
+        return
 
     '''def generate_mesh(self, x, size_cls):
         latent = self.encoder(x)
