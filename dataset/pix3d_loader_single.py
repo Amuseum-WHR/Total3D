@@ -13,7 +13,7 @@ from scipy.spatial import cKDTree
 
 
 root = ""    #根目录
-pix3d = "data/pix3d/train_test_data/"    #Pix3d数据目录
+pix3d = "data/pix3d/demo_data/"    #Pix3d数据目录
 mod = 'train'
 
 HEIGHT_PATCH = 256
@@ -47,7 +47,7 @@ class PixDataset(Dataset):
         self.pix3d_path = pix3d_path
         self.transform = transform
         self.file_idx = []
-        for i in range(13):
+        for i in range(7):
             self.file_idx.append('{}.pkl'.format(i))
         self.device = device
 
@@ -98,19 +98,19 @@ class PixDataset(Dataset):
         
         if self.transform is None:
             sample = {'sequence_id':data_pkl['sample_id'],
-                      'img':self.transform(image).to(self.device),
-                      'cls':cls_codes.to(self.device),
-                      'mesh_points':gt_points.to(self.device),
-                      'densities': densities.to(self.device)}
+                      'img':self.transform(image),
+                      'cls':cls_codes,
+                      'mesh_points':gt_points,
+                      'densities': densities}
             return sample
         else:
             data_raw = data_img
             data_img = self.transform(data_img)
             sample = {'sequence_id':data_pkl['sample_id'],
-                      'img':data_img.to(self.device),
-                      'cls':cls_codes.to(self.device),
-                      'mesh_points':gt_points.to(self.device),
-                      'densities': densities.to(self.device)}
+                      'img':data_img,
+                      'cls':cls_codes,
+                      'mesh_points':gt_points,
+                      'densities': densities}
             return sample
 
 if __name__ == 'main':
