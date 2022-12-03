@@ -114,7 +114,18 @@ class Atlasnet(nn.Module):
         #     self.error_estimators[i] = self.error_estimators[i].to(self.device)
 
 
-    def forward(self, latent_vector, train=True, threshold = 0.1, factor = 1):
+    def init_error_estimator(self):
+        self.error_estimators = nn.ModuleList(
+                [EREstimate(bottleneck_size = 3 + self.opt.bottleneck_size + self.opt.num_classes, output_dim=1) for i in range(0, max(self.subnetworks-1, 1))])
+        return
+    
+    def freeze_tmn(self):
+        for param in self.error_estimators[-1].parameters():
+                param.requires_grad = False
+        return
+
+
+    def forward(self, latent_vector, train=True, threshold = 0.25, factor = 1):
         """
         Deform points from self.template using the embedding latent_vector
         :param latent_vector: an opt.bottleneck size vector encoding a 3D shape or an image. size : batch, bottleneck
