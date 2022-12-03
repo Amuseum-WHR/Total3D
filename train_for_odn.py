@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import datetime
 import time
+from tqdm import *
 
 def parser():
     parser = argparse.ArgumentParser()
@@ -26,20 +27,21 @@ def parser():
     parser.add_argument("--threshold", type = float, default = 0.001, help='threshold of tnn network')
     parser.add_argument("--factor", type = float, default = 0.5, help='factor of tnn network')
 
-    parser.add_argument("--lr", type = float, default = 1e-4)
+    parser.add_argument("--lr", type = float, default = 1e-3)
     parser.add_argument("--betas", type = list, default = [0.9, 0.999])
     parser.add_argument("--eps", type = float, default = 1e-08)
     parser.add_argument("--weight_decay", type = float, default = 1e-04)
-
+    parser.add_argument("--batch_size", type = int, default = 32, help = 'Batch Size' )
     parser.add_argument("--nepoch", type = float, default = 500, help = 'the total training epochs')
 
     parser.add_argument("--model_path", type = str, default = "out", help = 'path of saved model')
     parser.add_argument("--log_path", type = str, default = "log", help = 'path of log info')
     parser.add_argument("--name", type = str, default = "test_code", help = 'name of this training process')
     
-    parser.add_argument("--demo", type = bool, default = True, help = 'demo or not')
+    parser.add_argument("--demo", action="store_true", default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
-
+    parser.add_argument("--check_freq", type = int, default = 5, help = 'The frequency of print loss in screen.')
+    parser.add_argument("--save_freq", type = int, default = 10, help = 'The frequency of saving a model.')
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
 
@@ -94,7 +96,7 @@ class Trainer():
 if __name__ == "__main__":
     opt = parser()
     if torch.cuda.is_available():
-        opt.device = torch.device("cuda:1")
+        opt.device = torch.device("cuda:0")
     else:
         opt.device = torch.device("cpu")
     
@@ -112,8 +114,8 @@ if __name__ == "__main__":
     Writer = SummaryWriter()
     dataset = SunDataset(root_path='.', device= opt.device)
     cfg = data_config.Config('sunrgbd')
-    net = ODN(cfg)
-    Train_loader = DataLoader(dataset, batch_size= 2, collate_fn=collate_fn, shuffle = False)
+    net = ODN(cfg).to(opt.device)
+    Train_loader = DataLoader(dataset, batch_size= opt.batch_size, collate_fn=collate_fn, shuffle = False)
 
     optimizer = torch.optim.Adam(net.parameters(), lr = opt.lr, betas = opt.betas, eps = opt.eps, weight_decay=opt.weight_decay)    
     trainer = Trainer(net, optimizer, loss.Detection_Loss(), opt.device)
@@ -121,18 +123,21 @@ if __name__ == "__main__":
     epochs = opt.nepoch
     net.train = True
     for epoch in range(epochs):
-        for idx, gt_data in enumerate(Train_loader):
-            loss = trainer.train_step(gt_data)
-            for key, value in loss.items():
+        loop = tqdm(enumerate(Train_loader), total=len(Train_loader))
+        for idx, gt_data in loop:
+            steploss = trainer.train_step(gt_data)
+            for key, value in steploss.items():
                 Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epochs * len(Train_loader))
             message = '( epoch: %d, ) ' % (epoch)
             message += '( step: %d, ) ' % (idx)
-            message += '%s: %.5f' % ("loss_train_total", loss['total'])
+            message += '%s: %.5f' % ("loss_train_total", steploss['total'])
             with open(log_name, "a") as log_file:
                 log_file.write('%s\n' % message)
-                
+            loop.set_description(f'Epoch [{epoch}/{epochs}]')
+            loop.set_postfix(loss = steploss['total'])
+
         if epoch % opt.check_freq == 0:
-            print('epoch {} loss: {:.4f}'.format(epoch, loss['total']))
+            print('epoch {} loss: {:.4f}'.format(epoch, steploss['total']))
 
         if (epoch % opt.save_freq ==0 ):
             print("saving nat...")            
