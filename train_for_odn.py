@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import datetime
 import time
+from tqdm import *
 
 def parser():
     parser = argparse.ArgumentParser()
@@ -39,7 +40,8 @@ def parser():
     
     parser.add_argument("--demo", action="store_true", default = False, help = 'demo or not')
     parser.add_argument("--demo_path", type = str, default = 'demo')
-    parser.add_argument("--check_freq", type = int, default = 100, help = 'The frequency of print loss in screen.')
+    parser.add_argument("--check_freq", type = int, default = 5, help = 'The frequency of print loss in screen.')
+    parser.add_argument("--save_freq", type = int, default = 10, help = 'The frequency of saving a model.')
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
 
@@ -121,18 +123,21 @@ if __name__ == "__main__":
     epochs = opt.nepoch
     net.train = True
     for epoch in range(epochs):
-        for idx, gt_data in enumerate(Train_loader):
-            loss = trainer.train_step(gt_data)
-            for key, value in loss.items():
+        loop = tqdm(enumerate(Train_loader), total=len(Train_loader))
+        for idx, gt_data in loop:
+            steploss = trainer.train_step(gt_data)
+            for key, value in steploss.items():
                 Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epochs * len(Train_loader))
             message = '( epoch: %d, ) ' % (epoch)
             message += '( step: %d, ) ' % (idx)
-            message += '%s: %.5f' % ("loss_train_total", loss['total'])
+            message += '%s: %.5f' % ("loss_train_total", steploss['total'])
             with open(log_name, "a") as log_file:
                 log_file.write('%s\n' % message)
-                
+            loop.set_description(f'Epoch [{epoch}/{epochs}]')
+            loop.set_postfix(loss = steploss['total'])
+
         if epoch % opt.check_freq == 0:
-            print('epoch {} loss: {:.4f}'.format(epoch, loss['total']))
+            print('epoch {} loss: {:.4f}'.format(epoch, steploss['total']))
 
         if (epoch % opt.save_freq ==0 ):
             print("saving nat...")            
