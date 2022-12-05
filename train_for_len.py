@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from model.LEN.LEN_model import LEN
+from model.LEN.LEN_model import PoseNet as LEN
 from configs import data_config
 from model import loss
 from dataset.SunrgbdDataloader import SunDataset, collate_fn

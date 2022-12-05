@@ -12,7 +12,7 @@ class PoseNet(nn.Module):
         self.optim_spec = optim_spec
 
         '''Module parameters'''
-        bin = cfg.dataset_config.bins
+        bin = cfg.bins
         self.PITCH_BIN = len(bin['pitch_bin'])
         self.ROLL_BIN = len(bin['roll_bin'])
         self.LO_ORI_BIN = len(bin['layout_ori_bin'])
