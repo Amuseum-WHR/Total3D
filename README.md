@@ -7,6 +7,7 @@ For the CV course Final project
 + pytorch 1.12.1
 + torchvision 0.13.1
 + pymesh
++ pytorch3d
 + other missing modules you can use 'pip install xxx' to install
 
 ## install pymesh

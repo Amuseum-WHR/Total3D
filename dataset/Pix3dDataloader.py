@@ -9,6 +9,7 @@ import pickle
 from torch.utils.data import Dataset,DataLoader
 import torchvision.transforms as transforms
 from scipy.spatial import cKDTree
+import collections
 
 root = './'    #根目录
 pix3d = 'data/pix3d/train_test_data/'    #Pix3d数据目录
@@ -18,6 +19,7 @@ HEIGHT_PATCH = 256
 WIDTH_PATCH = 256
 pix3d_n_classes = 9
 neighbors = 30
+default_collate = torch.utils.data.dataloader.default_collate
 
 non_trans = transforms.Compose([
     transforms.ToPILImage(),
@@ -116,8 +118,49 @@ class PixDataset(Dataset):
                       'densities': densities}
             return sample
         
+def recursive_convert_to_torch(elem):
+    if torch.is_tensor(elem):
+        return elem
+    elif type(elem).__module__ == 'numpy':
+        if elem.size == 0:
+            return torch.zeros(elem.shape).type(torch.DoubleTensor)
+        else:
+            return torch.from_numpy(elem)
+    elif isinstance(elem, int):
+        return torch.LongTensor([elem])
+    elif isinstance(elem, float):
+        return torch.DoubleTensor([elem])
+    elif isinstance(elem, collections.Mapping):
+        return {key: recursive_convert_to_torch(elem[key]) for key in elem}
+    elif isinstance(elem, collections.Sequence):
+        return [recursive_convert_to_torch(samples) for samples in elem]
+    else:
+        return elem
 
+def collate_fn(batch):
+    """
+    Data collater.
+
+    Assumes each instance is a dict.
+    Applies different collation rules for each field.
+    Args:
+        batches: List of loaded elements via Dataset.__getitem__
+    """
+    collated_batch = {}
+    # iterate over keys
+    for key in batch[0]:
+        collated_batch[key] = default_collate([elem[key] for elem in batch])
+
+    return collated_batch
+
+def Pix3d_dataloader(mode=mod, batch_size = 1):
+    dataloader = DataLoader(dataset = PixDataset(root_path= root,pix3d_path=pix3d,mode = mode, transform=trans),
+                            shuffle=True,
+                            batch_size=batch_size,
+                            collate_fn=collate_fn)
+    return dataloader
 
 
 if __name__ == '__main__':
-    dataset2 = PixDataset(transform=trans, root_path=root, pix3d_path=pix3d, mode=mod)
+    dataset = PixDataset(transform=trans, root_path=root, pix3d_path=pix3d, mode=mod)
+    dataloader = Pix3d_dataloader(mode = mod, batch_size=1)
