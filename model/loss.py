@@ -231,6 +231,25 @@ class SVRLoss(BaseLoss):
         return {'chamfer_loss': chamfer_loss, 'face_loss': 0.01 * face_loss,
                 'edge_loss': 0.1 * edge_loss, 'boundary_loss': 0.5 * boundary_loss}
 
+class PoseLoss(BaseLoss):
+    def __call__(self, est_data, gt_data, bins_tensor):
+        pitch_cls_loss, pitch_reg_loss = cls_reg_loss(est_data['pitch_cls'], gt_data['pitch_cls'], est_data['pitch_reg'], gt_data['pitch_reg'])
+        roll_cls_loss, roll_reg_loss = cls_reg_loss(est_data['roll_cls'], gt_data['roll_cls'], est_data['roll_reg'], gt_data['roll_reg'])
+        lo_ori_cls_loss, lo_ori_reg_loss = cls_reg_loss(est_data['lo_ori_cls'], gt_data['lo_ori_cls'], est_data['lo_ori_reg'], gt_data['lo_ori_reg'])
+        lo_centroid_loss = reg_criterion(est_data['lo_centroid'], gt_data['lo_centroid']) * cls_reg_ratio
+        lo_coeffs_loss = reg_criterion(est_data['lo_coeffs'], gt_data['lo_coeffs']) * cls_reg_ratio
+
+        lo_bdb3D_result = get_layout_bdb_sunrgbd(bins_tensor, est_data['lo_ori_reg'], gt_data['lo_ori_cls'], est_data['lo_centroid'],
+                                                 est_data['lo_coeffs'])
+        # layout bounding box corner loss
+        lo_corner_loss = cls_reg_ratio * reg_criterion(lo_bdb3D_result, gt_data['lo_bdb3D'])
+
+        return {'pitch_cls_loss':pitch_cls_loss, 'pitch_reg_loss':pitch_reg_loss,
+                'roll_cls_loss':roll_cls_loss, 'roll_reg_loss':roll_reg_loss,
+                'lo_ori_cls_loss':lo_ori_cls_loss, 'lo_ori_reg_loss':lo_ori_reg_loss,
+                'lo_centroid_loss':lo_centroid_loss, 'lo_coeffs_loss':lo_coeffs_loss,
+                'lo_corner_loss':lo_corner_loss}, {'lo_bdb3D_result':lo_bdb3D_result}
+
 class Detection_Loss(BaseLoss):
     def __init__(self, weight = 1, cls_reg_ratio = 10):
         super(Detection_Loss, self).__init__(weight = weight)
