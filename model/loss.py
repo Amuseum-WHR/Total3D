@@ -243,8 +243,10 @@ class PoseLoss(BaseLoss):
                                                  est_data['lo_coeffs'])
         # layout bounding box corner loss
         lo_corner_loss = cls_reg_ratio * reg_criterion(lo_bdb3D_result, gt_data['lo_bdb3D'])
+        total_loss = pitch_cls_loss + pitch_reg_loss + roll_cls_loss + roll_reg_loss + lo_ori_cls_loss + lo_ori_reg_loss + lo_centroid_loss + lo_coeffs_loss + lo_corner_loss
 
-        return {'pitch_cls_loss':pitch_cls_loss, 'pitch_reg_loss':pitch_reg_loss,
+        return {'total': total_loss,
+                'pitch_cls_loss':pitch_cls_loss, 'pitch_reg_loss':pitch_reg_loss,
                 'roll_cls_loss':roll_cls_loss, 'roll_reg_loss':roll_reg_loss,
                 'lo_ori_cls_loss':lo_ori_cls_loss, 'lo_ori_reg_loss':lo_ori_reg_loss,
                 'lo_centroid_loss':lo_centroid_loss, 'lo_coeffs_loss':lo_coeffs_loss,
