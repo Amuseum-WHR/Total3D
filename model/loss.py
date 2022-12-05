@@ -7,10 +7,15 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from pytorch3d.ops.knn import knn_points
+from model.utils.libs import get_layout_bdb_sunrgbd, get_bdb_form_from_corners, \
+    recover_points_to_world_sys, get_rotation_matix_result, get_bdb_3d_result, \
+    get_bdb_2d_result, physical_violation
+from configs.data_config import cls_reg_ratio
 
 binary_cls_criterion = nn.BCEWithLogitsLoss(reduction='mean')
 reg_criterion = nn.SmoothL1Loss(reduction='mean')
 cls_criterion = nn.CrossEntropyLoss(reduction='mean')
+mse_criterion = nn.MSELoss(reduction='mean')
 
 
 def cls_reg_loss(est_cls, gt_cls, est_reg, gt_reg):
@@ -243,4 +248,136 @@ class Detection_Loss(BaseLoss):
                 'size_reg_loss': size_reg_loss, 'ori_cls_loss': ori_cls_loss, 'ori_reg_loss': ori_reg_loss,
                 'centroid_cls_loss': centroid_cls_loss, 'centroid_reg_loss': centroid_reg_loss,
                 'offset_reg_loss': offset_reg_loss}
+
+class ReconLoss(BaseLoss):
+    def __call__(self, est_data, gt_data, extra_results):
+        if gt_data['mask_flag'] == 0:
+            point_loss = 0.
+        else:
+            # get the world coordinates for each 3d object.
+            bdb3D_form = get_bdb_form_from_corners(extra_results['bdb3D_result'], gt_data['mask_status'])
+            obj_points_in_world_sys = recover_points_to_world_sys(bdb3D_form, est_data['meshes'])
+            point_loss = 100 * get_point_loss(obj_points_in_world_sys, extra_results['cam_R_result'],
+                                              gt_data['K'], gt_data['depth_maps'], bdb3D_form, gt_data['split'],
+                                              gt_data['obj_masks'], gt_data['mask_status'])
+
+            # remove samples without depth map
+            if torch.isnan(point_loss):
+                point_loss = 0.
+
+        return {'mesh_loss':point_loss}
         
+def get_point_loss(points_in_world_sys, cam_R, cam_K, depth_maps, bdb3D_form, split, obj_masks, mask_status):
+    '''
+    get the depth loss for each mesh.
+    :param points_in_world_sys: Number_of_objects x Number_of_points x 3
+    :param cam_R: Number_of_scenes x 3 x 3
+    :param cam_K: Number_of_scenes x 3 x 3
+    :param depth_maps: Number_of_scenes depth maps in a list
+    :param split: Number_of_scenes x 2 matrix
+    :return: depth loss
+    '''
+    depth_loss = 0.
+    n_objects = 0
+    masked_object_id = -1
+
+    device = points_in_world_sys.device
+
+    for scene_id, obj_interval in enumerate(split):
+        # map depth to 3d points in camera system.
+        u, v = torch.meshgrid(torch.arange(0, depth_maps[scene_id].size(1)), torch.arange(0, depth_maps[scene_id].size(0)))
+        u = u.t().to(device)
+        v = v.t().to(device)
+        u = u.reshape(-1)
+        v = v.reshape(-1)
+        z_cam = depth_maps[scene_id][v, u]
+        u = u.float()
+        v = v.float()
+
+        # calculate coordinates
+        x_cam = (u - cam_K[scene_id][0][2])*z_cam/cam_K[scene_id][0][0]
+        y_cam = (v - cam_K[scene_id][1][2])*z_cam/cam_K[scene_id][1][1]
+
+        # transform to toward-up-right coordinate system
+        points_world = torch.cat([z_cam.unsqueeze(-1), -y_cam.unsqueeze(-1), x_cam.unsqueeze(-1)], -1)
+        # transform from camera system to world system
+        points_world = torch.mm(points_world, cam_R[scene_id].t())
+
+        n_columns = depth_maps[scene_id].size(1)
+
+        for loc_id, obj_id in enumerate(range(*obj_interval)):
+            if mask_status[obj_id] == 0:
+                continue
+            masked_object_id += 1
+
+            bdb2d = obj_masks[scene_id][loc_id]['msk_bdb']
+            obj_msk = obj_masks[scene_id][loc_id]['msk']
+
+            u_s, v_s = torch.meshgrid(torch.arange(bdb2d[0], bdb2d[2] + 1), torch.arange(bdb2d[1], bdb2d[3] + 1))
+            u_s = u_s.t().long()
+            v_s = v_s.t().long()
+            index_dep = u_s + n_columns * v_s
+            index_dep = index_dep.reshape(-1)
+            in_object_indices = obj_msk.reshape(-1).nonzero()[0]
+
+            # remove holes in depth maps
+            if len(in_object_indices) == 0:
+                continue
+
+            object_pnts = points_world[index_dep,:][in_object_indices,:]
+            # remove noisy points that out of bounding boxes
+            inner_idx = torch.sum(torch.abs(
+                torch.mm(object_pnts - bdb3D_form['centroid'][masked_object_id].view(1, 3), bdb3D_form['basis'][masked_object_id].t())) >
+                                  bdb3D_form['coeffs'][masked_object_id], dim=1)
+
+            inner_idx = torch.nonzero(inner_idx == 0).t()[0]
+
+            if inner_idx.nelement() == 0:
+                continue
+
+            object_pnts = object_pnts[inner_idx, :]
+
+            dist_1 = chamfer_distance(object_pnts.unsqueeze(0), points_in_world_sys[masked_object_id].unsqueeze(0))[0]
+            depth_loss += torch.mean(dist_1)
+            n_objects += 1
+    return depth_loss/n_objects if n_objects > 0 else torch.tensor(0.).to(device)
+
+class JointLoss(BaseLoss):
+    def __call__(self, est_data, gt_data, bins_tensor, layout_results):
+        # predicted camera rotation
+        cam_R_result = get_rotation_matix_result(bins_tensor,
+                                                 gt_data['pitch_cls'], est_data['pitch_reg'],
+                                                 gt_data['roll_cls'], est_data['roll_reg'])
+
+        # projected center
+        P_result = torch.stack(
+            ((gt_data['bdb2D_pos'][:, 0] + gt_data['bdb2D_pos'][:, 2]) / 2 - (gt_data['bdb2D_pos'][:, 2] - gt_data['bdb2D_pos'][:, 0]) * est_data['offset_2D'][:, 0],
+             (gt_data['bdb2D_pos'][:, 1] + gt_data['bdb2D_pos'][:, 3]) / 2 - (gt_data['bdb2D_pos'][:, 3] - gt_data['bdb2D_pos'][:, 1]) * est_data['offset_2D'][:, 1]), 1)
+
+        # retrieved 3D bounding box
+        bdb3D_result, _ = get_bdb_3d_result(bins_tensor,
+                                            gt_data['ori_cls'],
+                                            est_data['ori_reg'],
+                                            gt_data['centroid_cls'],
+                                            est_data['centroid_reg'],
+                                            gt_data['size_cls'],
+                                            est_data['size_reg'],
+                                            P_result,
+                                            gt_data['K'],
+                                            cam_R_result,
+                                            gt_data['split'])
+
+        # 3D bounding box corner loss
+        corner_loss = 5 * cls_reg_ratio * reg_criterion(bdb3D_result, gt_data['bdb3D'])
+
+        # 2D bdb loss
+        bdb2D_result = get_bdb_2d_result(bdb3D_result, cam_R_result, gt_data['K'], gt_data['split'])
+        bdb2D_loss = 20 * cls_reg_ratio * reg_criterion(bdb2D_result, gt_data['bdb2D_from_3D_gt'])
+
+        # physical violation loss
+        phy_violation, phy_gt = physical_violation(layout_results['lo_bdb3D_result'], bdb3D_result, gt_data['split'])
+        phy_loss = 20 * mse_criterion(phy_violation, phy_gt)
+        total_loss = phy_loss + bdb2D_loss + corner_loss
+
+        return {'total_loss': total_loss, 'phy_loss':phy_loss, 'bdb2D_loss':bdb2D_loss, 'corner_loss':corner_loss},\
+               {'cam_R_result':cam_R_result, 'bdb3D_result':bdb3D_result}

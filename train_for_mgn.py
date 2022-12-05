@@ -51,11 +51,13 @@ def parser():
     return opt
 
 class MGN_Trainer():
-    def __init__(self, net, optimizer, Loss, device = None):
-        self.net = net
-        self.optimizer = optimizer
+    def __init__(self, opt, device = None):
+        self.net = model.EncoderDecoder(opt)
+        self.loss = create_loss(opt)
+        self.optimizer = torch.optim.Adam(net.parameters(), lr=opt.lr, betas=opt.betas, eps=opt.eps, weight_decay=opt.weight_decay)
         self.device = device
-        self.Loss = Loss
+        self.threshold = opt.threshold
+        self.factor = opt.factor
 
     def load(self, load_path):
         self.net.load_state_dict(torch.load(load_path))
@@ -81,26 +83,32 @@ class MGN_Trainer():
                       'densities': densities}
         return intput_data
 
-    def mgn_train_step(self, data):
+    def train_step(self, data):
         data = self.to_device(data)
-        mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces = net(data['img'], data['cls'], threshold=opt.threshold, factor=opt.factor)
+        mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces = net(data['img'], data['cls'], threshold=self.threshold, factor=self.factor)
         est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                     'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids.bool(), 'faces':faces}
         self.optimizer.zero_grad()
         mgn_loss = self.Loss(est_data, data)
         loss = mgn_loss['total']
         loss.backward()
-        optimizer.step()
+        self.optimizer.step()
         return mgn_loss
 
-    def mgn_step(self, data):
+    def eval_loss_step(self, data):
         # 仅返回 loss 词典
-        data = self.to_device(data)
-        mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces = net(data['img'], data['cls'], threshold=opt.threshold, factor=opt.factor)
+        mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces = net(data['img'], data['cls'], threshold=self.threshold, factor=self.factor)
         est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
                     'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids.bool(), 'faces':faces}
         mgn_loss = self.Loss(est_data, data)
         return mgn_loss
+    
+    def eval_step(self, data):
+        # 仅返回 loss 词典
+        mesh_coordinates_results, points_from_edges, point_indicators, output_edges, boundary_point_ids, faces = net(data['img'], data['cls'], threshold=self.threshold, factor=self.factor)
+        est_data = {'mesh_coordinates_results':mesh_coordinates_results, 'points_from_edges':points_from_edges,
+                    'point_indicators':point_indicators, 'output_edges':output_edges, 'boundary_point_ids':boundary_point_ids.bool(), 'faces':faces}
+        return est_data
 
 def log_loss(epoch, step, loss_dict, log_name):
     message = '( epoch: %d, ) ' % (epoch)
@@ -149,10 +157,8 @@ if __name__ == "__main__":
         opt.device = torch.device(f"cuda:0")
     else:
         opt.device = torch.device(f"cpu")
-    net = model.EncoderDecoder(opt)
     loss = create_loss(opt)
-    optimizer = torch.optim.Adam(net.parameters(), lr=opt.lr, betas=opt.betas, eps=opt.eps, weight_decay=opt.weight_decay)
-    mgn_trainer = MGN_Trainer(net, optimizer, loss, opt.device)
+    mgn_trainer = MGN_Trainer(opt, opt.device)
     if opt.pretrain == True:
         mgn_trainer.load(opt.model_path)
     dataset_train = pixed_loader.PixDataset()
@@ -166,7 +172,7 @@ if __name__ == "__main__":
         epochs = opt.nepoch
         for epoch in range(start_epoch, start_epoch+epochs):
             for idx, gt_data in enumerate(dataloader_train):
-                loss_dict = mgn_trainer.mgn_train_step(gt_data)
+                loss_dict = mgn_trainer.train_step(gt_data)
                 if idx % opt.log_freq == 0:
                     log_loss(epoch, idx, loss_dict, log_name)
                 if idx % opt.check_freq == 0:
