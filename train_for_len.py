@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 
-from model.LEN.LEN_model import LEN
+from model.LEN.LEN_model import PoseNet as LEN
 from configs import data_config
 from model import loss
 from dataset.SunrgbdDataloader import SunDataset, collate_fn
 from easydict import EasyDict
 from torch.utils.data import DataLoader
 import argparse
+from model.utils.libs import to_dict_tensor
 
 from torch.utils.tensorboard import SummaryWriter
 
@@ -42,6 +43,8 @@ def parser():
     parser.add_argument("--demo_path", type = str, default = 'demo')
     parser.add_argument("--check_freq", type = int, default = 5, help = 'The frequency of print loss in screen.')
     parser.add_argument("--save_freq", type = int, default = 10, help = 'The frequency of saving a model.')
+    parser.add_argument("--cuda", type =str, default = "cuda:7", help = 'Which GPU to use for training.')
+    parser.add_argument("--cuda_num", type =int, default = 7, help = 'Which GPU to use for training.')
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
 
@@ -49,12 +52,13 @@ def parser():
     return opt
 
 class Trainer():
-    def __init__(self, net, optimizer, Loss, device = None):
+    def __init__(self, cfg, net, optimizer, Loss, device = None):
         self.net = net
+        self.cfg = cfg
         self.optimizer = optimizer
         self.device = device
         self.Loss = Loss
-    
+        self.bins_tensor = to_dict_tensor(cfg.bins, if_cuda=True if device != 'cpu' else False)
     def to_device(self, data):
         '''
         Change the data of SRGBD into the inputs we want to use.
@@ -83,7 +87,7 @@ class Trainer():
         data = self.to_device(data)
         
         est_data = self.net(data['image'])
-        loss = self.Loss(est_data, data)
+        loss, _ = self.Loss(est_data, data, self.bins_tensor)
         loss['total'].backward()
         self.optimizer.step()
         return loss
@@ -96,7 +100,8 @@ class Trainer():
 if __name__ == "__main__":
     opt = parser()
     if torch.cuda.is_available():
-        opt.device = torch.device("cuda:0")
+        opt.device = torch.device(opt.cuda)
+        torch.cuda.set_device(opt.cuda_num) 
     else:
         opt.device = torch.device("cpu")
     
@@ -118,7 +123,7 @@ if __name__ == "__main__":
     Train_loader = DataLoader(dataset, batch_size= opt.batch_size, collate_fn=collate_fn, shuffle = False)
 
     optimizer = torch.optim.Adam(net.parameters(), lr = opt.lr, betas = opt.betas, eps = opt.eps, weight_decay=opt.weight_decay)    
-    trainer = Trainer(net, optimizer, loss.PoseLoss(), opt.device)
+    trainer = Trainer(cfg, net, optimizer, loss.PoseLoss(), opt.device)
 
     epochs = opt.nepoch
     net.train = True
@@ -127,7 +132,7 @@ if __name__ == "__main__":
         for idx, gt_data in loop:
             steploss = trainer.train_step(gt_data)
             for key, value in steploss.items():
-                Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epochs * len(Train_loader))
+                Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epoch * len(Train_loader))
             message = '( epoch: %d, ) ' % (epoch)
             message += '( step: %d, ) ' % (idx)
             message += '%s: %.5f' % ("loss_train_total", steploss['total'])

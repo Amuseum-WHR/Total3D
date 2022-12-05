@@ -12,13 +12,14 @@ class PoseNet(nn.Module):
         self.optim_spec = optim_spec
 
         '''Module parameters'''
-        bin = cfg.dataset_config.bins
+        bin = cfg.bins
+
         self.PITCH_BIN = len(bin['pitch_bin'])
         self.ROLL_BIN = len(bin['roll_bin'])
         self.LO_ORI_BIN = len(bin['layout_ori_bin'])
 
         '''Modules'''
-        self.resnet = resnet.resnet34(pretrained=False)
+        self.resnet = resnet.resnet34_Half(pretrained=False)
         self.fc_1 = nn.Linear(2048, 1024)
         self.fc_2 = nn.Linear(1024, (self.PITCH_BIN + self.ROLL_BIN) * 2)
 
@@ -80,8 +81,8 @@ class PoseNet(nn.Module):
         lo_ct = self.fc_6(lo_ct)
         lo_centroid = lo_ct[:, :3]
         lo_coeffs = lo_ct[:, 3:]
-        layout_output = {'pitch_reg_result':pitch_reg, 'roll_reg_result':roll_reg,
-                             'pitch_cls_result':pitch_cls, 'roll_cls_result':roll_cls,
-                             'lo_ori_reg_result':lo_ori_reg, 'lo_ori_cls_result':lo_ori_cls,
-                             'lo_centroid_result':lo_centroid, 'lo_coeffs_result':lo_coeffs}
+        layout_output = {'pitch_reg':pitch_reg, 'roll_reg':roll_reg,
+                             'pitch_cls':pitch_cls, 'roll_cls':roll_cls,
+                             'lo_ori_reg':lo_ori_reg, 'lo_ori_cls':lo_ori_cls,
+                             'lo_centroid':lo_centroid, 'lo_coeffs':lo_coeffs}
         return layout_output
