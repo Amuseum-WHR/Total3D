@@ -27,7 +27,7 @@ def parser():
     parser.add_argument("--threshold", type = float, default = 0.001, help='threshold of tnn network')
     parser.add_argument("--factor", type = float, default = 0.5, help='factor of tnn network')
 
-    parser.add_argument("--lr", type = float, default = 1e-3)
+    parser.add_argument("--lr", type = float, default = 1e-4)
     parser.add_argument("--betas", type = list, default = [0.9, 0.999])
     parser.add_argument("--eps", type = float, default = 1e-08)
     parser.add_argument("--weight_decay", type = float, default = 1e-04)
@@ -42,6 +42,7 @@ def parser():
     parser.add_argument("--demo_path", type = str, default = 'demo')
     parser.add_argument("--check_freq", type = int, default = 5, help = 'The frequency of print loss in screen.')
     parser.add_argument("--save_freq", type = int, default = 10, help = 'The frequency of saving a model.')
+    parser.add_argument("--cuda", type =str, default = "cuda:0", help = 'Which GPU to use for training.')
     opt = parser.parse_args()
     opt = EasyDict(opt.__dict__)
 
@@ -96,7 +97,7 @@ class Trainer():
 if __name__ == "__main__":
     opt = parser()
     if torch.cuda.is_available():
-        opt.device = torch.device("cuda:0")
+        opt.device = torch.device(opt.cuda)
     else:
         opt.device = torch.device("cpu")
     
@@ -127,7 +128,7 @@ if __name__ == "__main__":
         for idx, gt_data in loop:
             steploss = trainer.train_step(gt_data)
             for key, value in steploss.items():
-                Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epochs * len(Train_loader))
+                Writer.add_scalar('train/loss_' + key, scalar_value=value, global_step=idx + epoch * len(Train_loader))
             message = '( epoch: %d, ) ' % (epoch)
             message += '( step: %d, ) ' % (idx)
             message += '%s: %.5f' % ("loss_train_total", steploss['total'])
@@ -140,7 +141,7 @@ if __name__ == "__main__":
             print('epoch {} loss: {:.4f}'.format(epoch, steploss['total']))
 
         if (epoch % opt.save_freq ==0 ):
-            print("saving nat...")            
+            print("saving net...")            
             if not os.path.exists(os.path.join(opt.model_path, opt.name)):
                 os.makedirs(os.path.join(opt.model_path, opt.name))
             model_path = opt.model_path + '/'+ opt.name + '/model_epoch{}.pth'.format(epoch)
