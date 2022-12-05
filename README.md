@@ -13,6 +13,8 @@ For the CV course Final project
 ## install pymesh
 Follow this [website](https://blog.csdn.net/weixin_46632183/article/details/120553750) to install pymesh.
 
+## install pytorch3d
+Follow this [website](https://blog.csdn.net/PascalBUAA/article/details/123408759) to install pytorch3d
 ## dataset
 To be filled.
 
