@@ -4,6 +4,7 @@ import numpy as np
 
 import model.MGN.MGN_model as mgn_model
 import model.ODN.ODN_model as odn_model
+import model.LEN.LEN_model as len_model
 
 from configs import data_config
 
@@ -13,11 +14,12 @@ class TOTAL3D(nn.Module):
         cfg = data_config.Config('sunrgbd')
         self.odn = odn_model(cfg).to(opt.device)
         self.mgn = mgn_model(opt)
+        self.len = len_model(cfg).to(opt.device)
         self.mgn_threshold = opt.threshold
-        self.mgn_factor = opt.factor
+        self.mgn_factor = opt.factor 
 
     def forward(self, len_input, odn_input, joint_input, train=True):
-        l_est_data = self.len(len_input)
+        l_est_data = self.len(len_input['image'])
         o_est_data = self.odn(odn_input['patch'], odn_input['g_features'], odn_input['split'], odn_input['rel_pair_counts'], odn_input['size_cls'])
 
         output_mesh,_ ,_ ,_ ,_ ,faces  = self.mgn(joint_input["patch_for_mesh"], joint_input["cls_codes_for_mesh"], self.mgn_threshold, self.mgn_factor)

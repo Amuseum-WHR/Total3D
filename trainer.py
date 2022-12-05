@@ -7,7 +7,7 @@ import numpy as np
 from easydict import EasyDict
 
 from model.network import TOTAL3D
-from model.loss import ReconLoss, JointLoss, Detection_Loss
+from model.loss import ReconLoss, JointLoss, Detection_Loss, PoseLoss
 
 from configs.data_config import Config as Data_Config
 from configs.data_config import NYU37_TO_PIX3D_CLS_MAPPING
@@ -18,6 +18,7 @@ from model.utils.libs import to_dict_tensor
 def parser():
     parser = argparse.ArgumentParser()
 
+    # for mgn
     parser.add_argument("--bottleneck_size", type = int, default = 1024, help='dim_out_patch')
     parser.add_argument("--number_points", type = int, default = 2562)
     parser.add_argument("--subnetworks", type = int, default = 2, help='num of tnn subnetworks')
@@ -33,7 +34,10 @@ def parser():
     parser.add_argument("--batch_size", type = int, default = 32, help = 'Batch Size' )
     parser.add_argument("--nepoch", type = float, default = 500, help = 'the total training epochs')
 
-    parser.add_argument("--model_path", type = str, default = "out", help = 'path of saved model')
+    parser.add_argument("--mgn_load_path", type = str, default = "out", help = 'path of saved model')
+    parser.add_argument("--len_load_path", type = str, default = "out", help = 'path of saved model')
+    parser.add_argument("--odn_load_path", type = str, default = "out", help = 'path of saved model')
+
     parser.add_argument("--log_path", type = str, default = "log", help = 'path of log info')
     parser.add_argument("--name", type = str, default = "test_code", help = 'name of this training process')
     
@@ -48,18 +52,34 @@ def parser():
     return opt
 
 class Trainer():
-    def __init__(self, opt, device = None):
+    def __init__(self, opt, optimizer, device = None):
+        self.opt = opt
         self.device = device
         self.model = TOTAL3D(opt)
-        self.optimizer = None
+        self.optimizer = optimizer
 
         self.Recon_Loss = ReconLoss
         self.detloss = Detection_Loss
-        self.pointloss = None
+        self.poseloss = PoseLoss
         self.jointloss = JointLoss
 
         dataset_config = Data_Config('sunrgbd')
         self.bins_tensor = to_dict_tensor(dataset_config.bins, if_cuda=True if device != 'cpu' else False)
+        self.load_model()
+    
+    def load_model(self):
+        len_load_path = self.opt.len_load_path
+        odn_load_path = self.opt.odn_load_path
+        mgn_load_path = self.opt.mgn_load_path
+        if len_load_path != '':
+            self.model.len.load_state_dict(torch.load(len_load_path))
+            print("Loading LEN model " + len_load_path)
+        if odn_load_path != '':
+            self.model.odn.load_state_dict(torch.load(odn_load_path))
+            print("Loading ODN model " + odn_load_path)
+        if mgn_load_path != '':
+            self.model.odn.load_state_dict(torch.load(mgn_load_path))
+            print("Loading MGN model " + mgn_load_path)   
  
     def train_step(self, data):
         self.optimizer.zero_grad()
@@ -69,7 +89,7 @@ class Trainer():
         # len写完了再改
         joint_est_data = len_est_data + odn_est_data + mgn_est_data
 
-        len_loss, layout_results = self.pointloss(None)
+        len_loss, layout_results = self.poseloss(len_est_data, len_input, self.bins_tensor)
         odn_loss = self.detloss(odn_input, odn_est_data)
         joint_loss, extra_results = self.jointloss(joint_est_data, joint_input, self.bins_tensor, layout_results)
         recon_loss = self.Recon_Loss(mgn_est_data, data, extra_results)
@@ -150,14 +170,6 @@ class Trainer():
                         'cls_codes_for_mesh':cls_codes_for_mesh, 'bdb2D_from_3D_gt':bdb2D_from_3D_gt, 'bdb2D_pos':bdb2D_pos}
 
         return layout_input, object_input, joint_input
-
-if __name__ == '__main__':
-    opt = parser()
-    if torch.cuda.is_available():
-        opt.device = torch.device("cuda:0")
-    else:
-        opt.device = torch.device("cpu")
-        trainer = Trainer(opt)
 
 
 

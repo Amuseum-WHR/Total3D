@@ -80,8 +80,8 @@ class PoseNet(nn.Module):
         lo_ct = self.fc_6(lo_ct)
         lo_centroid = lo_ct[:, :3]
         lo_coeffs = lo_ct[:, 3:]
-        layout_output = {'pitch_reg_result':pitch_reg, 'roll_reg_result':roll_reg,
-                             'pitch_cls_result':pitch_cls, 'roll_cls_result':roll_cls,
-                             'lo_ori_reg_result':lo_ori_reg, 'lo_ori_cls_result':lo_ori_cls,
-                             'lo_centroid_result':lo_centroid, 'lo_coeffs_result':lo_coeffs}
+        layout_output = {'pitch_reg':pitch_reg, 'roll_reg':roll_reg,
+                             'pitch_cls':pitch_cls, 'roll_cls':roll_cls,
+                             'lo_ori_reg':lo_ori_reg, 'lo_ori_cls':lo_ori_cls,
+                             'lo_centroid':lo_centroid, 'lo_coeffs':lo_coeffs}
         return layout_output
