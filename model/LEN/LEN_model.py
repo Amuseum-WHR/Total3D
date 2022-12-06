@@ -13,10 +13,6 @@ class PoseNet(nn.Module):
 
         '''Module parameters'''
         bin = cfg.bins
-<<<<<<< HEAD
-
-=======
->>>>>>> d09b8f85e32c965672bc0d648629058fe604c52b
         self.PITCH_BIN = len(bin['pitch_bin'])
         self.ROLL_BIN = len(bin['roll_bin'])
         self.LO_ORI_BIN = len(bin['layout_ori_bin'])
