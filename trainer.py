@@ -52,11 +52,11 @@ def parser():
     return opt
 
 class Trainer():
-    def __init__(self, opt, optimizer, device = None):
+    def __init__(self, opt, device = None):
         self.opt = opt
         self.device = device
         self.model = TOTAL3D(opt)
-        self.optimizer = optimizer
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr = opt.lr, betas = opt.betas, eps = opt.eps, weight_decay=opt.weight_decay)
 
         self.Recon_Loss = ReconLoss
         self.detloss = Detection_Loss
@@ -71,22 +71,32 @@ class Trainer():
         len_load_path = self.opt.len_load_path
         odn_load_path = self.opt.odn_load_path
         mgn_load_path = self.opt.mgn_load_path
-        if len_load_path != '':
-            self.model.len.load_state_dict(torch.load(len_load_path))
-            print("Loading LEN model " + len_load_path)
-        if odn_load_path != '':
-            self.model.odn.load_state_dict(torch.load(odn_load_path))
-            print("Loading ODN model " + odn_load_path)
-        if mgn_load_path != '':
-            self.model.odn.load_state_dict(torch.load(mgn_load_path))
-            print("Loading MGN model " + mgn_load_path)   
+        t3d_load_path = self.opt.t3d_load_path
+        if t3d_load_path != '':
+            self.model.load_state_dict(torch.load(t3d_load_path))
+            print("Loading Total3D model " + t3d_load_path)
+        else:
+            if len_load_path != '':
+                self.model.len.load_state_dict(torch.load(len_load_path))
+                print("Loading LEN model " + len_load_path)
+            if odn_load_path != '':
+                self.model.odn.load_state_dict(torch.load(odn_load_path))
+                print("Loading ODN model " + odn_load_path)
+            if mgn_load_path != '':
+                self.model.odn.load_state_dict(torch.load(mgn_load_path))
+                print("Loading MGN model " + mgn_load_path)
+        return
+
+    def save_net(self, save_dir):
+        torch.save(self.model.state_dict(), save_dir)
+        return
  
     def train_step(self, data):
         self.optimizer.zero_grad()
 
         len_input, odn_input, joint_input = self.to_device(data)
         len_est_data, odn_est_data, mgn_est_data = self.model(len_input, odn_input, joint_input)
-        # len写完了再改
+
         joint_est_data = len_est_data + odn_est_data + mgn_est_data
 
         len_loss, layout_results = self.poseloss(len_est_data, len_input, self.bins_tensor)
@@ -98,7 +108,11 @@ class Trainer():
         loss.backward()
         self.optimizer.step()
         
-        return loss
+        return {'total':loss, 
+                'len loss': len_loss['total'], 
+                'odn loss': odn_loss['total'], 
+                'mgn loss': recon_loss['mesh_loss'], 
+                'joint loss': joint_loss['total']}
 
 
     def to_device(self, data):
