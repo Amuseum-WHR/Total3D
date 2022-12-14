@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 import numpy as np
 
-import model.MGN.MGN_model as mgn_model
-import model.ODN.ODN_model as odn_model
-import model.LEN.LEN_model as len_model
+from model.MGN.MGN_model import EncoderDecoder as mgn_model
+from model.ODN.ODN_model import ODN as odn_model
+from model.LEN.LEN_model import PoseNet as len_model
 
 from configs import data_config
 
 class TOTAL3D(nn.Module):
     def __init__(self, opt):
+        super(TOTAL3D, self).__init__()
         self.len = None
         cfg = data_config.Config('sunrgbd')
-        self.odn = odn_model(cfg).to(opt.device)
+        self.odn = odn_model(cfg) # .to(opt.device)
         self.mgn = mgn_model(opt)
-        self.len = len_model(cfg).to(opt.device)
+        self.len = len_model(cfg) # .to(opt.device)
         self.mgn_threshold = opt.threshold
         self.mgn_factor = opt.factor 
 
