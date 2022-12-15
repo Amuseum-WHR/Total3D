@@ -64,7 +64,11 @@ class Trainer():
         self.jointloss = JointLoss()
 
         dataset_config = Data_Config('sunrgbd')
-        self.bins_tensor = to_dict_tensor(dataset_config.bins, if_cuda=True if device != 'cpu' else False)
+        if device != torch.device("cpu"):
+            if_cuda = True
+        else:
+            if_cuda = False
+        self.bins_tensor = to_dict_tensor(dataset_config.bins, if_cuda=if_cuda)
         self.load_model()
     
     def load_model(self):
@@ -76,9 +80,9 @@ class Trainer():
             self.model.load_state_dict(torch.load(t3d_load_path))
             print("Loading Total3D model " + t3d_load_path)
         else:
-            # if len_load_path != '':
-            #     self.model.len.load_state_dict(torch.load(len_load_path, map_location=self.device))
-            #     print("Loading LEN model " + len_load_path)
+            if len_load_path != '':
+                self.model.len.load_state_dict(torch.load(len_load_path, map_location=self.device))
+                print("Loading LEN model " + len_load_path)
             if odn_load_path != '':
                 self.model.odn.load_state_dict(torch.load(odn_load_path, map_location=self.device))
                 print("Loading ODN model " + odn_load_path)
@@ -91,26 +95,24 @@ class Trainer():
         torch.save(self.model.state_dict(), save_dir)
         return
  
-    def train_step(self, data):
-        self.optimizer.zero_grad()
-
+    def train_step(self, data, train=True):
         len_input, odn_input, joint_input = self.to_device(data)
-        len_est_data, odn_est_data, mgn_est_data = self.model(len_input, odn_input, joint_input)
+        len_est_data, odn_est_data, mgn_est_data = self.model(len_input, odn_input, joint_input, train)
 
         joint_input = dict(dict(len_input, **odn_input), **joint_input)
-
         # joint_est_data = dict(len_est_data.items() + odn_est_data.items() + mgn_est_data.items())
         joint_est_data = dict(dict(len_est_data, **odn_est_data), **mgn_est_data)
+        if train == False:
+            return joint_est_data, joint_input
         len_loss, layout_results = self.poseloss(len_est_data, len_input, self.bins_tensor)
 
         odn_loss = self.detloss(odn_est_data, odn_input)
-        for item in joint_input:
-            print(item)
 
         joint_loss, extra_results = self.jointloss(joint_est_data, joint_input, self.bins_tensor, layout_results)
         recon_loss = self.Recon_Loss(mgn_est_data, joint_input, extra_results)
 
         loss = odn_loss['total'] + recon_loss['mesh_loss'] + joint_loss['total_loss'] + len_loss['total']
+        self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
         
@@ -178,8 +180,10 @@ class Trainer():
         cls_codes[range(size_cls.size(0)), [NYU37_TO_PIX3D_CLS_MAPPING[cls.item()] for cls in
                                             torch.argmax(size_cls, dim=1)]] = 1
 
-        patch_for_mesh = patch[mask_status.nonzero()]
-        cls_codes_for_mesh = cls_codes[mask_status.nonzero()]
+        # patch_for_mesh = patch[mask_status.nonzero()]
+        # cls_codes_for_mesh = cls_codes[mask_status.nonzero()]
+        patch_for_mesh = patch
+        cls_codes_for_mesh = cls_codes
 
         '''calculate loss from the interelationship between object and layout.'''
         bdb2D_from_3D_gt = data['boxes_batch']['bdb2D_from_3D'].float().to(device)
