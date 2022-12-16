@@ -6,7 +6,7 @@ from chainercv.links import FasterRCNNVGG16
 from chainercv import utils
 from chainercv.visualizations import vis_bbox
 
-from dataset.Sunrgbd_2DBB_Dataloader import SunDataset_2DBB
+# from dataset.Sunrgbd_2DBB_Dataloader import SunDataset_2DBB
 
 sunrgbd_bbox_label_names = ('void',
                 'wall', 'floor', 'cabinet', 'bed', 'chair',
@@ -33,9 +33,9 @@ def TwoDBB(gpu, pretrained_model, image):
     bboxes, labels, scores = model.predict([img])
     bbox, label, score = bboxes[0], labels[0], scores[0]
 
-    # vis_bbox(
-    #     img, bbox, label, score, label_names=sunrgbd_bbox_label_names)
-    # plt.show()
+    vis_bbox(
+        img, bbox, label, score, label_names=sunrgbd_bbox_label_names)
+    plt.show()
     
     n_objects = bbox.shape[0]
     bbox_xy = [[int(bbox[i][1]), int(bbox[i][0]), int(bbox[i][3]), int(bbox[i][2])]  for i in range(n_objects)]
@@ -47,9 +47,9 @@ def TwoDBB(gpu, pretrained_model, image):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--gpu', type=int, default=0)
-    parser.add_argument('--pretrained-model', default='./out/2022-12-16_00:15:20.006411/sunrgbd_model_70000.npz')
-    parser.add_argument('--image', default='./demo/inputs/img1.jpg')
+    parser.add_argument('--gpu', type=int, default=-1)
+    parser.add_argument('--pretrained-model', default='./pretrained-model/sunrgbd_model_65000.npz')
+    parser.add_argument('--image', default='./demo/inputs/5/img.jpg')
     args = parser.parse_args()
 
     print(TwoDBB(args.gpu, args.pretrained_model, args.image))

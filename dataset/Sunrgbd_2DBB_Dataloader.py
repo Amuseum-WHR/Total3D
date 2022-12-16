@@ -157,7 +157,7 @@ class SunDataset_2DBB(Dataset):
         
         bbox = [[dic1['bdb2D_pos'][i][1], dic1['bdb2D_pos'][i][0], dic1['bdb2D_pos'][i][3], dic1['bdb2D_pos'][i][2]]  for i in range(n_objects)]
         
-        return (np.float32(data_pkl['rgb_img'].transpose((2,0,1))), np.float32(bbox), labels.numpy())
+        return (np.float32(data_pkl['rgb_img'].transpose((2,0,1))), np.float32(bbox), labels)
 
 def recursive_convert_to_torch(elem):
     if torch.is_tensor(elem):
