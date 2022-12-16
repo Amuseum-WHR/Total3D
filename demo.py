@@ -1,4 +1,4 @@
-from trainer import Trainer
+from tester import Tester
 
 import time
 import datetime
@@ -67,8 +67,8 @@ if __name__ == "__main__":
     
     Writer = SummaryWriter()
     dataset = SunDataset(root_path='.', device= opt.device, mode='test')
-    Train_loader = DataLoader(dataset, batch_size= opt.batch_size, collate_fn=collate_fn, shuffle = False)
-    trainer = Trainer(opt, device=opt.device)
+    Train_loader = DataLoader(dataset, batch_size= opt.batch_size, collate_fn=collate_fn, shuffle = True)
+    trainer = Tester(opt, device=opt.device)
     trainer.model.to(opt.device)
 
     trainer.model.eval()
@@ -107,6 +107,7 @@ if __name__ == "__main__":
                                                        data['K'], cam_R_out, data['split'], return_bdb=True)
     
         # save results
+    print("Saving...")
     nyu40class_ids = [int(evaluate_bdb['classid']) for evaluate_bdb in bdb3D_out_form_cpu]
     save_path = opt.demo_path
     if not os.path.exists(save_path):
@@ -118,28 +119,26 @@ if __name__ == "__main__":
     interval = data['split'][0].cpu().tolist()
     current_cls = nyu40class_ids[interval[0]:interval[1]]
 
-    savemat(os.path.join(save_path, 'bdb_3d.mat'),
-            mdict={'bdb': bdb3D_out_form_cpu[interval[0]:interval[1]], 'class_id': current_cls})
-    savemat(os.path.join(save_path, 'r_ex.mat'),
-            mdict={'cam_R': cam_R_out[0, :, :].cpu().numpy()})
-    # save meshes
+    # savemat(os.path.join(save_path, 'bdb_3d.mat'),
+    #         mdict={'bdb': bdb3D_out_form_cpu[interval[0]:interval[1]], 'class_id': current_cls})
+    # savemat(os.path.join(save_path, 'r_ex.mat'),
+    #         mdict={'cam_R': cam_R_out[0, :, :].cpu().numpy()})
+    # # save meshes
     current_faces = est_data['out_faces'][interval[0]:interval[1]].cpu().numpy()
     current_coordinates = est_data['meshes'].transpose(1, 2)[interval[0]:interval[1]].cpu().numpy()
     
 
     # import pymesh
-    for obj_id, obj_cls in enumerate(current_cls):
-        # if obj_id >= len(current_coordinates):
-        #     print('more....')
-        file_path = os.path.join(save_path, '%s_%s.obj' % (obj_id, obj_cls))
+    # for obj_id, obj_cls in enumerate(current_cls):
+    #     # if obj_id >= len(current_coordinates):
+    #     #     print('more....')
+    #     file_path = os.path.join(save_path, '%s_%s.obj' % (obj_id, obj_cls))
 
-        # if obj_cls in RECON_3D_CLS:
-            # pymesh.save_mesh_raw(file_path, current_coordinates[obj_id], current_faces[obj_id])
-            # print("saving " + NYU40CLASSES[obj_cls])
-        mesh_obj = {'v': current_coordinates[obj_id],
-                    'f': current_faces[obj_id]}
-
-        write_obj(file_path, mesh_obj)
+    #         # print("saving " + NYU40CLASSES[obj_cls])
+    #     mesh_obj = {'v': current_coordinates[obj_id],
+    #                 'f': current_faces[obj_id]}
+    #     write_obj(file_path, mesh_obj)
+    #     # pymesh.save_mesh_raw(file_path, current_coordinates[obj_id], current_faces[obj_id])
 
     img_path = os.path.join(save_path, 'exp_img.png')
     img = data['image'][0].to("cpu")
@@ -150,26 +149,66 @@ if __name__ == "__main__":
     img = transforms.ToPILImage()(img)
     img.save(img_path)
 
-    import scipy.io as sio
-    from utils.visualize import format_bbox, format_layout, format_mesh, Box
-    from glob import glob
     import numpy as np
 
-    pre_layout_data = sio.loadmat(os.path.join(save_path, 'layout.mat'))['layout']
-    pre_box_data = sio.loadmat(os.path.join(save_path, 'bdb_3d.mat'))
+    total_vertice = None
+    total_face = None
 
-    pre_boxes = format_bbox(pre_box_data, 'prediction')
-    pre_layout = format_layout(pre_layout_data)
-    pre_cam_R = sio.loadmat(os.path.join(save_path, 'r_ex.mat'))['cam_R']
+    for obj_id, obj_cls in enumerate(current_cls):
+        points = current_coordinates[obj_id]
+        mesh_center = (points.max(0) + points.min(0)) / 2.
+        points = points - mesh_center
 
-    vtk_objects, pre_boxes = format_mesh(glob(os.path.join(save_path, '*.obj')), pre_boxes)
+        mesh_coef = (points.max(0) - points.min(0)) / 2.
+        points = points.dot(np.diag(1./mesh_coef)).dot(np.diag(bdb3D_out_form_cpu[obj_id]['coeffs']))
 
-    image = np.array(img)
-    cam_K = data['K'][0].to("cpu")
+        # set orientation
+        points = points.dot(bdb3D_out_form_cpu[obj_id]['basis'])
 
-    scene_box = Box(image, None, cam_K, None, pre_cam_R, None, pre_layout, None, pre_boxes, 'prediction', output_mesh = vtk_objects)
-    scene_box.draw_projected_bdb3d('prediction', if_save=True, save_path = '%s/3dbbox.png' % (save_path))
-    scene_box.draw3D(if_save=True, save_path = '%s/recon.png' % (save_path))
+        # move to center
+        points = points + bdb3D_out_form_cpu[obj_id]['centroid']
+
+        # file_path = os.path.join(save_path, '%s_%s_666.obj' % (obj_id, obj_cls))
+        # pymesh.save_mesh_raw(file_path, points, current_faces[obj_id])
+        # print(points.shape)
+        if obj_id == 0:
+            total_vertice = points
+            total_face = current_faces[obj_id]
+        else:
+            total_vertice = np.vstack((total_vertice, points))
+            faces = current_faces[obj_id]
+            faces = faces + obj_id * 2562
+            total_face = np.vstack((total_face, faces))
+    
+    file_path = '%s/recon.ply' % (save_path)
+    # import open3d as o3d
+    # pcd = o3d.geometry.PointCloud()
+    # pcd.points = o3d.utility.Vector3dVector(total_vertice)
+    # o3d.io.write_point_cloud(file_path, pcd)
+    import pymesh
+    pymesh.save_mesh_raw(file_path, total_vertice, total_face)
+
+    # print("Visualizeing......")
+    # import scipy.io as sio
+    # from utils.visualize import format_bbox, format_layout, format_mesh, Box
+    # from glob import glob
+    # import numpy as np
+
+    # pre_layout_data = sio.loadmat(os.path.join(save_path, 'layout.mat'))['layout']
+    # pre_box_data = sio.loadmat(os.path.join(save_path, 'bdb_3d.mat'))
+
+    # pre_boxes = format_bbox(pre_box_data, 'prediction')
+    # pre_layout = format_layout(pre_layout_data)
+    # pre_cam_R = sio.loadmat(os.path.join(save_path, 'r_ex.mat'))['cam_R']
+
+    # vtk_objects, pre_boxes = format_mesh(glob(os.path.join(save_path, '*.obj')), pre_boxes)
+
+    # image = np.array(img)
+    # cam_K = data['K'][0].to("cpu")
+
+    # scene_box = Box(image, None, cam_K, None, pre_cam_R, None, pre_layout, None, pre_boxes, 'prediction', output_mesh = vtk_objects)
+    # scene_box.draw_projected_bdb3d('prediction', if_save=True, save_path = '%s/3dbbox.png' % (save_path))
+    # scene_box.draw3D(if_save=True, save_path = '%s/recon.png' % (save_path))
         
 
     
