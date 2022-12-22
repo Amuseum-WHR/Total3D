@@ -99,6 +99,8 @@ class SunDataset_2DBB(Dataset):
         camera = data_pkl['camera']
         boxes = data_pkl['boxes']
 
+        labels = boxes['size_cls']
+
         # build relational geometric features for each object
         n_objects = boxes['bdb2D_pos'].shape[0]
 
@@ -156,7 +158,6 @@ class SunDataset_2DBB(Dataset):
                 dic1[key] = arr
         
         bbox = [[dic1['bdb2D_pos'][i][1], dic1['bdb2D_pos'][i][0], dic1['bdb2D_pos'][i][3], dic1['bdb2D_pos'][i][2]]  for i in range(n_objects)]
-        labels = boxes['size_cls']
         
         return (np.float32(data_pkl['rgb_img'].transpose((2,0,1))), np.float32(bbox), labels)
 
