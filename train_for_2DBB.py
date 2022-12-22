@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--step_size', '-ss', type=int, default=25000)
     parser.add_argument('--iteration', '-i', type=int, default=100000)
+    parser.add_argument('--lr_shift', '-ls', type=float, default=0.5)
     parser.add_argument('--save_interval', '-si', type=int, default=5000)
     parser.add_argument('--evaluation_interval', '-ei', type=int, default=5000)
     args = parser.parse_args()
@@ -106,7 +107,7 @@ def main():
         extensions.snapshot_object(model.faster_rcnn, 
                                    '2dbb_model_{.updater.iteration}.npz'),
         trigger=weight_save_interval)
-    trainer.extend(extensions.ExponentialShift('lr', 0.5),
+    trainer.extend(extensions.ExponentialShift('lr', args.lr_shift),
                    trigger=(args.step_size, 'iteration'))
 
     log_interval = 20, 'iteration'
