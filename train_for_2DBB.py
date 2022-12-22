@@ -1,10 +1,10 @@
+'''Reference: chainercv/examples/faster_rcnn/train.py'''
 from __future__ import division
 
 import argparse
 import numpy as np
 import os.path as osp
 import datetime
-
 import matplotlib
 matplotlib.use('Agg')
 
@@ -12,17 +12,14 @@ import chainer
 from chainer.datasets import TransformDataset
 from chainer import training
 from chainer.training import extensions
-from chainer.training.triggers import ManualScheduleTrigger
 
-from chainercv.datasets import voc_bbox_label_names
 from chainercv.extensions import DetectionVOCEvaluator
 from chainercv.links import FasterRCNNVGG16
 from chainercv.links.model.faster_rcnn import FasterRCNNTrainChain
 from chainercv import transforms
 
-import sys
-sys.path.append(osp.curdir)
 from dataset.Sunrgbd_2DBB_Dataloader import SunDataset_2DBB
+
 
 sunrgbd_bbox_label_names = ('void',
                 'wall', 'floor', 'cabinet', 'bed', 'chair',
@@ -59,22 +56,22 @@ class Transform(object):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='ChainerCV training example: Faster R-CNN')
-    parser.add_argument('--root_path', '-path', type=str, 
-                        default=".")
+        description='Training Faster R-CNN for 2D Bounding Boxes on Sun RGB-D')
+    parser.add_argument('--root_path', '-path', type=str, default=".")
     parser.add_argument('--gpu', '-g', type=int, default=0)
-    parser.add_argument('--lr', '-l', type=float, default=0.001)
-    parser.add_argument('--out', '-o', default='./out', 
-                        help='Output directory')
+    parser.add_argument('--lr', '-l', type=float, default=1e-3)
+    parser.add_argument('--out', '-o', default='./out')
     parser.add_argument('--seed', '-s', type=int, default=0)
     parser.add_argument('--step_size', '-ss', type=int, default=50000)
     parser.add_argument('--iteration', '-i', type=int, default=70000)
+    parser.add_argument('--save_interval', '-si', type=int, default=5000)
+    parser.add_argument('--evaluation_interval', '-ei', type=int, default=5000)
     args = parser.parse_args()
 
     np.random.seed(args.seed)
 
-    train_data = SunDataset_2DBB(args.root_path, mode="train")
-    test_data = SunDataset_2DBB(args.root_path, mode="test")
+    train_data = SunDataset_2DBB(args.root_path, mode='train')
+    test_data = SunDataset_2DBB(args.root_path, mode='test')
 
     faster_rcnn = FasterRCNNVGG16(n_fg_class=len(sunrgbd_bbox_label_names),
                                   pretrained_model='imagenet')
@@ -96,20 +93,18 @@ def main():
     updater = chainer.training.updaters.StandardUpdater(
         train_iter, optimizer, device=args.gpu)
 
-    now_time = str(datetime.datetime.today()).replace(" ","_")
+    now_time = str(datetime.datetime.today()).replace(' ','_')
     save_dir = osp.join(args.out, now_time)
 
     trainer = training.Trainer(
         updater, (args.iteration, 'iteration'), out=save_dir)
 
-    #save_iteration = [i for i in range(100, args.iteration, args.step_size)]
-
-    weight_save_interval = 5000, 'iteration'
-    evaluation_interval = 10000, 'iteration'
+    weight_save_interval = args.save_interval, 'iteration'
+    evaluation_interval = args.evaluation_interval, 'iteration'
 
     trainer.extend(
         extensions.snapshot_object(model.faster_rcnn, 
-                                   'sunrgbd_model_{.updater.iteration}.npz'),
+                                   '2dbb_model_{.updater.iteration}.npz'),
         trigger=weight_save_interval)
     trainer.extend(extensions.ExponentialShift('lr', 0.1),
                    trigger=(args.step_size, 'iteration'))

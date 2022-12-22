@@ -1,3 +1,4 @@
+'''Modified from SunrgbdDataloader.py'''
 import math
 import json
 import torch
@@ -50,6 +51,7 @@ trans = transforms.Compose([
 
 pil2tensor = transforms.ToTensor()
 
+# Modify __getitem__ to ruturn (img, bbox, labels)
 class SunDataset_2DBB(Dataset):
     def __init__(self,root_path = root,RGBD_path = sunrgbd,mode = 'train',transform = None, device = "cuda"):
         '''
@@ -121,8 +123,6 @@ class SunDataset_2DBB(Dataset):
 
         boxes['g_feature'] = pe.view(n_objects * n_objects, rel_cfg.d_g)
 
-        labels = boxes['size_cls']
-
         # encode class
         cls_codes = torch.zeros([len(boxes['size_cls']), len(NYU40CLASSES)])
         cls_codes[range(len(boxes['size_cls'])), boxes['size_cls']] = 1
@@ -156,6 +156,7 @@ class SunDataset_2DBB(Dataset):
                 dic1[key] = arr
         
         bbox = [[dic1['bdb2D_pos'][i][1], dic1['bdb2D_pos'][i][0], dic1['bdb2D_pos'][i][3], dic1['bdb2D_pos'][i][2]]  for i in range(n_objects)]
+        labels = boxes['size_cls']
         
         return (np.float32(data_pkl['rgb_img'].transpose((2,0,1))), np.float32(bbox), labels)
 
