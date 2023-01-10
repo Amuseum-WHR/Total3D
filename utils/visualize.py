@@ -397,11 +397,6 @@ class Box(Scene3D):
         # render, _ = self.set_render()
         
         render_window = self.set_render_window()
-        # if if_show:
-        render_window_interactor = vtk.vtkRenderWindowInteractor()
-        render_window_interactor.SetRenderWindow(render_window)
-        render_window.Render()
-        render_window_interactor.Start()
 
         if if_save:
             if not os.path.exists(os.path.dirname(save_path)):
@@ -414,6 +409,11 @@ class Box(Scene3D):
             writer.SetFileName(save_path)
             writer.Write()
 
+        # if if_show:
+        render_window_interactor = vtk.vtkRenderWindowInteractor()
+        render_window_interactor.SetRenderWindow(render_window)
+        render_window.Render()
+        render_window_interactor.Start()
 
 def parse_args():
     '''PARAMETERS'''
